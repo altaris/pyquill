@@ -1,2 +1,4 @@
-click
 loguru
+matplotlib
+qiskit>=1.0.0
+pylatexenc

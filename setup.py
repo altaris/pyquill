@@ -13,10 +13,9 @@ with open("README.md", "r", encoding="utf-8") as f:
 with open("requirements.txt", "r", encoding="utf-8") as f:
     requirements = f.read().split()
 
-packages = (
-    [name]
-    + [name + "." + p for p in setuptools.find_packages(where="./" + name)]
-)
+packages = [name] + [
+    name + "." + p for p in setuptools.find_packages(where="./" + name)
+]
 
 setuptools.setup(
     author="Cédric Ho Thanh",
@@ -26,8 +25,6 @@ setuptools.setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.8",
-        "Programming Language :: Python :: 3.9",
     ],
     install_requires=requirements,
     long_description=long_description,
