@@ -117,16 +117,29 @@ def step1(
     for depth, layer in layers.items():
         for node in layer:
             # if node.name == "cx":
-            # if node.name == "cz":
-            # if node.name == "cr":
-            if node.name.startswith("c"):  # controlled gate
+            if node.name == "cz":
                 q_ctrl = int(node.qargs[0]._index)  # type: ignore
                 q_tgt = int(node.qargs[1]._index)  # type: ignore
-                result[q_ctrl][depth] = rndr.GateController()
+                result[q_ctrl][depth] = rndr.GateController(
+                    target=q_tgt - q_ctrl
+                )
+                result[q_tgt][depth] = rndr.GateController(target=0)
+            elif node.name == "cp":
+                q_ctrl = int(node.qargs[0]._index)  # type: ignore
+                q_tgt = int(node.qargs[1]._index)  # type: ignore
+                theta = node.op.params[0]
+                result[q_ctrl][depth] = rndr.ControlledPhaseGate(
+                    target=q_tgt - q_ctrl, theta=theta
+                )
+                result[q_tgt][depth] = rndr.GateController(target=0)
+            elif node.name.startswith("c"):  # controlled gate
+                q_ctrl = int(node.qargs[0]._index)  # type: ignore
+                q_tgt = int(node.qargs[1]._index)  # type: ignore
+                result[q_ctrl][depth] = rndr.GateController(
+                    target=q_tgt - q_ctrl
+                )
                 result[q_tgt][depth] = rndr.ControlledGate(
-                    name=node.name[1:],
-                    width=1,
-                    controller=q_ctrl - q_tgt,
+                    name=node.name[1:], width=1
                 )
             else:
                 a, b = _node_range(node)

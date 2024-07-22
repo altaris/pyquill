@@ -3,6 +3,7 @@
 
 from pathlib import Path
 
+import numpy as np
 import typst
 from qiskit import QuantumCircuit
 
@@ -11,21 +12,40 @@ from pyquill import draw
 OUTPUT_FILE = Path("test/test.typ")
 
 
-def test_simple() -> QuantumCircuit:
-    qc = QuantumCircuit(2)
+def test_000_simple() -> QuantumCircuit:
+    qc = QuantumCircuit(3)
     qc.h(0)
     qc.cx(0, 1)
     qc.h(1)
+    qc.cx(1, 0)
     return qc
 
 
 def test_parallel_cx() -> QuantumCircuit:
     qc = QuantumCircuit(4)
     qc.cx(0, 1)
-    qc.cx(2, 3)
+    qc.cx(3, 2)
     qc.cy(0, 2)
-    qc.cy(1, 3)
+    qc.cy(3, 1)
     qc.cy(0, 2)
+    return qc
+
+
+def test_cphase() -> QuantumCircuit:
+    qc = QuantumCircuit(2)
+    qc.cz(0, 1)
+    qc.h(0)
+    qc.cp(np.pi, 0, 1)
+    qc.h(0)
+    qc.cp(np.pi / 2, 0, 1)
+    qc.h(0)
+    qc.cp(3 * np.pi / 4, 0, 1)
+    qc.h(0)
+    qc.cp(-np.pi / 4, 0, 1)
+    qc.h(0)
+    qc.cp(-3 * np.pi, 0, 1)
+    qc.h(0)
+    qc.cp(0.1, 0, 1)
     return qc
 
 
@@ -41,6 +61,7 @@ if __name__ == "__main__":
         for k, v in globals().items()
         if k.startswith("test_") and callable(v)
     }
+    test_functions = dict(sorted(test_functions.items(), key=lambda x: x[0]))
     for name, test in test_functions.items():
         print(name)
         qc = test()
