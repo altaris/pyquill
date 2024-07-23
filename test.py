@@ -19,6 +19,7 @@ def test_000_simple() -> QuantumCircuit:
     qc.p(np.pi / 2, 0)
     qc.h(1)
     qc.cx(1, 0)
+    qc.swap(1, 2)
     return qc
 
 
@@ -62,8 +63,12 @@ def test_register() -> QuantumCircuit:
 def test_2_control() -> QuantumCircuit:
     qc = QuantumCircuit(3)
     qc.ccx(0, 1, 2)
-    qc.ccz(2, 0, 1)
+    qc.ccx(2, 0, 1)
     qc.ccx(2, 1, 0)
+    qc.ccz(0, 1, 2)
+    qc.cswap(2, 0, 1)
+    qc.cswap(1, 0, 2)
+    qc.cswap(0, 1, 2)
     return qc
 
 

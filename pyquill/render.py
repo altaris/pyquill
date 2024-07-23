@@ -83,6 +83,10 @@ def render_opnode(
         theta = as_fraction_of_pi(node.op.params[0])
         result[_q(0)] = f"phase(${theta}$)"
 
+    elif node.name == "swap":
+        tgt = _qai(1) - _qai(0)
+        result[_q(0)], result[_q(1)] = f"swap({tgt})", "targX()"
+
     elif node.name.startswith("cc"):  # two qubits controlled gate
         in_idx = [indices[q] for q in node.qargs[2:]]
         width = max(in_idx) - min(in_idx) + 1
@@ -101,7 +105,10 @@ def render_opnode(
         width, tgt = max(in_idx) - min(in_idx) + 1, _qai(1) - _qai(0)
         name = node.name[1:].upper()
         result[_q(0)] = f"ctrl({tgt})"
-        if name == "X":
+        if name == "SWAP":
+            swp = _qai(2) - _qai(1)
+            result[_q(1)], result[_q(2)] = f"swap({swp})", "targX()"
+        elif name == "X":
             result[_q(1)] = "targ()"
         else:
             result[_q(1)] = f"mqgate(${name}$, n: {width})"
