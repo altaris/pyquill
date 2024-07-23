@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 import typst
-from qiskit import QuantumCircuit
+from qiskit import QuantumCircuit, QuantumRegister
 
 from pyquill import draw
 
@@ -49,6 +49,15 @@ def test_cphase() -> QuantumCircuit:
     return qc
 
 
+def test_register() -> QuantumCircuit:
+    a = QuantumRegister(2, "psi")
+    b = QuantumRegister(3, "phi")
+    qc = QuantumCircuit(a, b)
+    qc.h(a[0])
+    qc.cx(a[0], b[2])
+    return qc
+
+
 if __name__ == "__main__":
     content = (
         '#import "@preview/physica:0.9.3": *\n'
@@ -61,7 +70,7 @@ if __name__ == "__main__":
         for k, v in globals().items()
         if k.startswith("test_") and callable(v)
     }
-    test_functions = dict(sorted(test_functions.items(), key=lambda x: x[0]))
+    # test_functions = dict(sorted(test_functions.items(), key=lambda x: x[0]))
     for name, test in test_functions.items():
         print(name)
         qc = test()
