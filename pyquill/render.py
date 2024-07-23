@@ -85,7 +85,9 @@ def render_opnode(
         tgt_0, tgt_1 = _qai(2) - _qai(0), _qai(2) - _qai(1)
         name = node.name[2:].upper()
         result[_q(0)], result[_q(1)] = f"ctrl({tgt_0})", f"ctrl({tgt_1})"
-        if name == "Z":
+        if name == "X":
+            result[_q(2)] = "targ()"
+        elif name == "Z":
             result[_q(2)] = "ctrl(0)"
         else:
             result[_q(2)] = f"mqgate(${name}$, n: {width})"
@@ -95,7 +97,10 @@ def render_opnode(
         width, tgt = max(in_idx) - min(in_idx) + 1, _qai(1) - _qai(0)
         name = node.name[1:].upper()
         result[_q(0)] = f"ctrl({tgt})"
-        result[_q(1)] = f"mqgate(${name}$, n: {width})"
+        if name == "X":
+            result[_q(1)] = "targ()"
+        else:
+            result[_q(1)] = f"mqgate(${name}$, n: {width})"
 
     else:  # Generic gate
         in_idx = [indices[q] for q in node.qargs]
