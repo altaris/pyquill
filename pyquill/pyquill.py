@@ -8,7 +8,7 @@ from qiskit.circuit import QuantumCircuit, Qubit
 from qiskit.converters import circuit_to_dag
 from qiskit.dagcircuit import DAGCircuit, DAGOpNode
 
-from . import renderers as rndr
+from .render import render_opnode
 
 
 def _clashes(node: DAGOpNode, layer: list[DAGOpNode]) -> bool:
@@ -90,61 +90,39 @@ def draw(
     return result
 
 
-def step1(dag: DAGCircuit) -> dict[Qubit, dict[int, rndr.Renderer]]:
+# TODO: Find a better name
+def step1(dag: DAGCircuit) -> dict[Qubit, dict[int, str]]:
     """
     Generates a two level dictionnary of renderers. The the
     keys of the outer dictionary) are the `Qubit` objects, and the inner
-    dictionaries map a depth to gate renderer.
+    dictionaries map a depth to a typst instruction.
 
     In other words, if
 
         data = step1(layers)
 
-    then `data[q][d]` is the renderer for the gate at depth `d` on qubit `q`,
-    if such a gate exists.
+    then `data[q][d]` is a typst instruction for the gate at depth `d` on qubit
+    `q`, if such a gate exists.
 
     Args:
         layers (DAGCircuit):
 
     Returns:
-        dict[Qubit, dict[int, rndr.Renderer]]:
+        dict[Qubit, dict[int, str]]:
     """
     layers = dag_layers(dag)
     indices: dict[Qubit, int] = {q: i for i, q in enumerate(dag.qubits)}
-    result: dict[Qubit, dict[int, rndr.Renderer]] = defaultdict(dict)
+    result: dict[Qubit, dict[int, str]] = defaultdict(dict)
     for depth, layer in layers.items():
         for node in layer:
-            # if node.name == "cx":
-            if node.name == "cz":
-                q_ctrl, q_tgt = node.qargs[0], node.qargs[1]
-                result[q_ctrl][depth] = rndr.GateController(
-                    target=indices[q_tgt] - indices[q_ctrl]
-                )
-                result[q_tgt][depth] = rndr.GateController(target=0)
-            elif node.name == "cp":
-                q_ctrl, q_tgt = node.qargs[0], node.qargs[1]
-                theta = node.op.params[0]
-                result[q_ctrl][depth] = rndr.ControlledPhaseGate(
-                    target=indices[q_tgt] - indices[q_ctrl], theta=theta
-                )
-                result[q_tgt][depth] = rndr.GateController(target=0)
-            elif node.name.startswith("c"):  # controlled gate
-                q_ctrl = node.qargs[0]
-                q_tgt = node.qargs[1]
-                result[q_ctrl][depth] = rndr.GateController(
-                    target=indices[q_tgt] - indices[q_ctrl]
-                )
-                result[q_tgt][depth] = rndr.ControlledGate(
-                    name=node.name[1:], width=1
-                )
-            else:
-                (a, b), q = _node_range(node), node.qargs[0]
-                result[q][depth] = rndr.Gate(name=node.name, width=b - a + 1)
+            for q, r in render_opnode(node, indices).items():
+                result[q][depth] = r
     return result
 
 
+# TODO: Find a better name
 def step2(
-    dag: DAGCircuit, renderers: dict[Qubit, dict[int, rndr.Renderer]]
+    dag: DAGCircuit, renderers: dict[Qubit, dict[int, str]]
 ) -> list[list[str]]:
     """
     Takes the two-levels dictionary of renderers produced by `step1` and
@@ -156,10 +134,7 @@ def step2(
         u = renderers.get(q, {})
         wire = [f"lstick($ket({q._register.name}_{q._index})$)"]
         for d in range(depth):
-            if g := u.get(d):
-                wire.append(g.to_typst())
-            else:
-                wire.append("1")
+            wire.append(u.get(d, "1"))
         wire.append("1")
         if i != dag.num_qubits() - 1:
             wire.append("[\\ ]")
