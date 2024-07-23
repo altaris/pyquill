@@ -83,6 +83,12 @@ def render_opnode(
         theta = as_fraction_of_pi(node.op.params[0])
         result[_q(0)] = f"phase(${theta}$)"
 
+    elif node.name == "sx":
+        result[_q(0)] = "$sqrt(X)$"
+
+    elif node.name == "sxdg":
+        result[_q(0)] = "$sqrt(X)^dagger$"
+
     elif node.name == "swap":
         tgt = _qai(1) - _qai(0)
         result[_q(0)], result[_q(1)] = f"swap({tgt})", "targX()"

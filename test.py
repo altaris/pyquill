@@ -17,8 +17,9 @@ def test_000_simple() -> QuantumCircuit:
     qc.h(0)
     qc.cx(0, 1)
     qc.p(np.pi / 2, 0)
-    qc.h(1)
+    qc.sx(1)
     qc.cx(1, 0)
+    qc.sxdg(1)
     qc.swap(1, 2)
     return qc
 
