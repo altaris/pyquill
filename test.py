@@ -58,6 +58,14 @@ def test_register() -> QuantumCircuit:
     return qc
 
 
+def test_2_control() -> QuantumCircuit:
+    qc = QuantumCircuit(3)
+    qc.ccx(0, 1, 2)
+    qc.ccz(2, 0, 1)
+    qc.ccx(2, 1, 0)
+    return qc
+
+
 if __name__ == "__main__":
     content = (
         '#import "@preview/physica:0.9.3": *\n'
