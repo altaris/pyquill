@@ -5,55 +5,11 @@
 from collections import defaultdict
 
 from qiskit.circuit import QuantumCircuit, Qubit
-from qiskit.converters import circuit_to_dag
-from qiskit.dagcircuit import DAGCircuit, DAGOpNode
+from qiskit.visualization.circuit._utils import (
+    _get_layered_instructions as get_layered_instructions,
+)
 
 from .render import render_opnode
-
-
-def _clashes(node: DAGOpNode, layer: list[DAGOpNode]) -> bool:
-    """
-    Checks of `node` classes with any node in `layer`.
-
-    Two opnodes are said to *clash* if their ranges overlap. In other words, if
-    one opnodes first quibit index is between the other's first and last qubits
-    indices. Visually, if one were to draw both gates on a quantum circuit
-    diagram, they would overlap.
-    """
-    a1, a2 = _node_range(node)
-    for n in layer:
-        b1, b2 = _node_range(n)
-        if a1 <= b1 <= a2 or b1 <= a1 <= b2:
-            return True
-    return False
-
-
-def _node_range(node: DAGOpNode) -> tuple[int, int]:
-    """
-    A `DAGOpNode` range is a tuple containing the minimum and maximum
-    indices of its input qubits. For example, if the node has input quibits 1,
-    4, 5, then the range is (1, 5).
-    """
-    inputs = [i._index for i in node.qargs]
-    return min(inputs), max(inputs)
-
-
-def dag_layers(dag: DAGCircuit) -> dict[int, list[DAGOpNode]]:
-    """
-    Returns a dictionary of layers of opnodes. For example, the list at key `0`
-    would be the set of all opnodes that can be ran in parallel at the begining
-    of the circuit. Opnodes in each layer are guaranteed to not clash with
-    other nodes in the same layer.
-    """
-    layers: dict[int, list[DAGOpNode]] = defaultdict(list)
-    for node in dag.topological_op_nodes():
-        clash_idx = -1  # Deepest layer to clash with node
-        for j in sorted(layers.keys(), reverse=True):
-            if _clashes(node, layers[j]):
-                clash_idx = j
-                break
-        layers[clash_idx + 1].append(node)
-    return layers
 
 
 def draw(
@@ -70,8 +26,7 @@ def draw(
             possible (but not desirable) to have `leading_hash=False` but
             `imports=True`.
     """
-    dag = circuit_to_dag(qc)
-    matrix = step2(dag, step1(dag))
+    matrix = step2(qc, step1(qc))
     result = ",".join(",".join(row) for row in matrix)
     result = "quantum-circuit(" + result + ")"
     if leading_hash:
@@ -91,29 +46,24 @@ def draw(
 
 
 # TODO: Find a better name
-def step1(dag: DAGCircuit) -> dict[Qubit, dict[int, str]]:
+def step1(qc: QuantumCircuit) -> dict[Qubit, dict[int, str]]:
     """
-    Generates a two level dictionnary of renderers. The the
-    keys of the outer dictionary) are the `Qubit` objects, and the inner
-    dictionaries map a depth to a typst instruction.
+    Generates a two-levels dictionary of typst instruction for each qubit in
+    the input quantum circuit.
 
-    In other words, if
-
-        data = step1(layers)
-
-    then `data[q][d]` is a typst instruction for the gate at depth `d` on qubit
-    `q`, if such a gate exists.
+    If `qc` is a quantum circuit, then `step1(qc)[q][d]` is a typst instruction
+    for a gate for qubit `q` at depth `d`.
 
     Args:
-        layers (DAGCircuit):
+        qc (QuantumCircuit):
 
     Returns:
         dict[Qubit, dict[int, str]]:
     """
-    layers = dag_layers(dag)
-    indices: dict[Qubit, int] = {q: i for i, q in enumerate(dag.qubits)}
+    _, _, layers = get_layered_instructions(qc)
+    indices: dict[Qubit, int] = {q: i for i, q in enumerate(qc.qubits)}
     result: dict[Qubit, dict[int, str]] = defaultdict(dict)
-    for depth, layer in layers.items():
+    for depth, layer in enumerate(layers):
         for node in layer:
             for q, r in render_opnode(node, indices).items():
                 result[q][depth] = r
@@ -122,7 +72,7 @@ def step1(dag: DAGCircuit) -> dict[Qubit, dict[int, str]]:
 
 # TODO: Find a better name
 def step2(
-    dag: DAGCircuit, renderers: dict[Qubit, dict[int, str]]
+    qc: QuantumCircuit, renderers: dict[Qubit, dict[int, str]]
 ) -> list[list[str]]:
     """
     Takes the two-levels dictionary of renderers produced by `step1` and
@@ -130,13 +80,13 @@ def step2(
     """
     depth = max(a for b in renderers.values() for a in b.keys()) + 1
     result: list[list[str]] = []
-    for i, q in enumerate(dag.qubits):
+    for i, q in enumerate(qc.qubits):
         u = renderers.get(q, {})
         wire = [f"lstick($ket({q._register.name}_{q._index})$)"]
         for d in range(depth):
             wire.append(u.get(d, "1"))
         wire.append("1")
-        if i != dag.num_qubits() - 1:
+        if i != qc.num_qubits - 1:
             wire.append("[\\ ]")
         result.append(wire)
     return result
