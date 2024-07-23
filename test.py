@@ -16,6 +16,7 @@ def test_000_simple() -> QuantumCircuit:
     qc = QuantumCircuit(3)
     qc.h(0)
     qc.cx(0, 1)
+    qc.p(np.pi / 2, 0)
     qc.h(1)
     qc.cx(1, 0)
     return qc

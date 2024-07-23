@@ -79,6 +79,10 @@ def render_opnode(
         result[_q(0)] = f"ctrl({tgt}, wire-label: ${theta}$)"
         result[_q(1)] = "ctrl(0)"
 
+    elif node.name == "p":
+        theta = as_fraction_of_pi(node.op.params[0])
+        result[_q(0)] = f"phase(${theta}$)"
+
     elif node.name.startswith("cc"):  # two qubits controlled gate
         in_idx = [indices[q] for q in node.qargs[2:]]
         width = max(in_idx) - min(in_idx) + 1
