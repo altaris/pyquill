@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 import typst
 from qiskit import QuantumCircuit, QuantumRegister
+from qiskit.circuit.library import *
 
 from pyquill import draw
 
@@ -21,6 +22,66 @@ def test_000_simple() -> QuantumCircuit:
     qc.cx(1, 0)
     qc.sxdg(1)
     qc.swap(1, 2)
+    return qc
+
+
+def test_1_qubit_gates() -> QuantumCircuit:
+    gates = [
+        [  # Noneparametric
+            XGate(),
+            YGate(),
+            ZGate(),
+            HGate(),
+            SGate(),
+            SdgGate(),
+            SXGate(),
+            SXdgGate(),
+            TGate(),
+            TdgGate(),
+            IGate(),
+        ],
+        [  # 1 parameter
+            PhaseGate(np.pi),
+            RGate(np.pi, np.pi / 4),
+            RXGate(np.pi),
+            RYGate(np.pi),
+            RZGate(np.pi),
+        ],
+        [  # 2 parameters
+            U2Gate(np.pi / 4, np.pi / 8),
+        ],
+        [  # 3 parameter
+            UGate(np.pi / 2, np.pi / 4, np.pi / 8),
+            RVGate(0.1, 0.2, 0.3),
+        ],
+    ]
+    qc = QuantumCircuit(len(gates))
+    for i, g in enumerate(gates):
+        for u in g:
+            qc.append(u, [i])
+    return qc
+
+
+def test_2_qubit_gates() -> QuantumCircuit:
+    gates = [
+        [  # Noneparametric
+            DCXGate(),
+            ECRGate(),
+            iSwapGate(),
+        ],
+        [  # 1 parameter
+            RXXGate(np.pi),
+            RYYGate(np.pi),
+            RZZGate(np.pi),
+            RZXGate(np.pi),
+        ],
+        [],  # 2 parameters
+        [],  # 3 parameter
+    ]
+    qc = QuantumCircuit(2 * len(gates))
+    for i, g in enumerate(gates):
+        for u in g:
+            qc.append(u, [2 * i, 2 * i + 1])
     return qc
 
 

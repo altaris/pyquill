@@ -32,16 +32,57 @@ def as_fraction_of_pi(theta: float) -> str:
     return f"({n} pi) / {d}"
 
 
-def gate_name_to_typst(name: str) -> str:
+def easy_node_to_typst(node: DAGOpNode) -> str:
     """
     Converts a gate name (as defined by qiskit) to a typst string. The name
     must be a
     [`DAGOpNode`](https://docs.quantum.ibm.com/api/qiskit/qiskit.dagcircuit.DAGOpNode)
     opcode.
+
+    See also:
+        https://docs.quantum.ibm.com/api/qiskit/qiskit.circuit.QuantumCircuit#methods-to-add-standard-instructions
     """
-    if len(name) == 1:
-        return "$" + name.upper() + "$"
-    raise NotImplementedError(f"Unsupported gate name: {name}")
+    easy_gates: dict[str, str] = {  # opname -> typst
+        "dcx": '"DCX"',
+        "ecr": '"ECR"',
+        "h": "$H$",
+        "id": "$I$",
+        "iswap": '"iSWAP"',
+        # "ms": '"GMS"',  # TODO:
+        "p": "$P({0})$",
+        # "pauli": "$$",
+        # "prepare_state": "State Preparation",  # TODO:
+        "r": "$R({0})$",
+        # "rcccx": "$$",
+        # "rccx": "$$",
+        "rv": "$R_V ({0}, {1}, {2})$",
+        "rx": "$R_X ({0})$",
+        "rxx": "$R_(X X) ({0})$",
+        "ry": "$R_Y ({0})$",
+        "ryy": "$R_(Y Y) ({0})$",
+        "rz": "$R_Z ({0})$",
+        "rzx": "$R_(Z X) ({0})$",
+        "s": "$S$",
+        "sdg": "$S^dagger$",
+        # "swap": "$$",
+        "sx": "$sqrt(X)$",
+        "sxdg": "$sqrt(X)^dagger$",
+        "t": "$T$",
+        "tdg": "$T^dagger$",
+        "u": "$U({0}, {1}, {2})$",
+        "u1": "$P({0})$",
+        "u2": "$U(pi / 2, {0}, {1})$",
+        "u3": "$U({0}, {1}, {2})$",
+        "unitary": '"Unitary"',
+        "x": "$X$",
+        "y": "$Y$",
+        "z": "$Z$",
+    }
+    if typst := easy_gates.get(node.name):
+        if node.name == "rv":
+            return typst.format(*node.op.params)
+        return typst.format(*map(as_fraction_of_pi, node.op.params))
+    return '"???"'
 
 
 def render_opnode(
@@ -83,11 +124,10 @@ def render_opnode(
         theta = as_fraction_of_pi(node.op.params[0])
         result[_q(0)] = f"phase(${theta}$)"
 
-    elif node.name == "sx":
-        result[_q(0)] = "$sqrt(X)$"
-
-    elif node.name == "sxdg":
-        result[_q(0)] = "$sqrt(X)^dagger$"
+    elif node.name == "rzz":
+        tgt, theta = _qai(1) - _qai(0), as_fraction_of_pi(node.op.params[0])
+        result[_q(0)] = f"ctrl({tgt}, wire-label: $Z Z ({theta})$)"
+        result[_q(1)] = "ctrl(0)"
 
     elif node.name == "swap":
         tgt = _qai(1) - _qai(0)
@@ -122,6 +162,7 @@ def render_opnode(
     else:  # Generic gate
         in_idx = [indices[q] for q in node.qargs]
         width = max(in_idx) - min(in_idx) + 1
-        name = node.name.upper()
-        result[_q(0)] = f"mqgate(${name}$, n: {width})"
+        name = easy_node_to_typst(node)
+        result[_q(0)] = f"mqgate({name}, n: {width})"
+
     return result
