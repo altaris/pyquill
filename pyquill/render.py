@@ -2,6 +2,7 @@
 Dataclasses to encapsulate rendering information for gates etc.
 """
 
+import re
 from fractions import Fraction
 
 import numpy as np
@@ -32,7 +33,7 @@ def as_fraction_of_pi(theta: float) -> str:
     return f"({n} pi) / {d}"
 
 
-def easy_node_to_typst(node: DAGOpNode) -> str:
+def easy_op_to_typst(op_name: str, parameters: list) -> str:
     """
     Converts a gate name (as defined by qiskit) to a typst string. The name
     must be a
@@ -78,10 +79,10 @@ def easy_node_to_typst(node: DAGOpNode) -> str:
         "y": "$Y$",
         "z": "$Z$",
     }
-    if typst := easy_gates.get(node.name):
-        if node.name == "rv":
-            return typst.format(*node.op.params)
-        return typst.format(*map(as_fraction_of_pi, node.op.params))
+    if typst := easy_gates.get(op_name):
+        if op_name == "rv":
+            return typst.format(*parameters)
+        return typst.format(*map(as_fraction_of_pi, parameters))
     return '"???"'
 
 
@@ -134,8 +135,8 @@ def render_opnode(
         result[_q(0)], result[_q(1)] = f"swap({tgt})", "targX()"
 
     elif node.name.startswith("cc"):  # two qubits controlled gate
-        in_idx = [indices[q] for q in node.qargs[2:]]
-        width = max(in_idx) - min(in_idx) + 1
+        iai = [indices[q] for q in node.qargs[2:]]
+        width = max(iai) - min(iai) + 1
         tgt_0, tgt_1 = _qai(2) - _qai(0), _qai(2) - _qai(1)
         name = node.name[2:].upper()
         result[_q(0)], result[_q(1)] = f"ctrl({tgt_0})", f"ctrl({tgt_1})"
@@ -147,22 +148,31 @@ def render_opnode(
             result[_q(2)] = f"mqgate(${name}$, n: {width})"
 
     elif node.name.startswith("c"):  # controlled gate
-        in_idx = [indices[q] for q in node.qargs[1:]]
-        width, tgt = max(in_idx) - min(in_idx) + 1, _qai(1) - _qai(0)
-        name = node.name[1:].upper()
-        result[_q(0)] = f"ctrl({tgt})"
-        if name == "SWAP":
+        if node.name.startswith("cc"):
+            n_contols, gate = 2, node.name[2:]
+        elif match := re.match(r"^c(\d+)(.*)$", node.name):
+            n_contols, gate = int(match.group(1)), match.group(2)
+        else:
+            n_contols, gate = 1, node.name[1:]
+        # input qubit absolute indices
+        iai = [indices[q] for q in node.qargs[n_contols:]]
+        width = max(iai) - min(iai) + 1
+        for i in range(n_contols):
+            tgt = min(iai) - _qai(i)
+            result[_q(i)] = f"ctrl({tgt})"
+        if gate == "swap":
             swp = _qai(2) - _qai(1)
             result[_q(1)], result[_q(2)] = f"swap({swp})", "targX()"
-        elif name == "X":
-            result[_q(1)] = "targ()"
+        elif gate == "x":
+            result[_q(-1)] = "targ()"
         else:
-            result[_q(1)] = f"mqgate(${name}$, n: {width})"
+            t = easy_op_to_typst(gate, node.op.params)
+            result[_q(n_contols)] = f"mqgate({t}, n: {width})"
 
     else:  # Generic gate
-        in_idx = [indices[q] for q in node.qargs]
-        width = max(in_idx) - min(in_idx) + 1
-        name = easy_node_to_typst(node)
+        iai = [indices[q] for q in node.qargs]
+        width = max(iai) - min(iai) + 1
+        name = easy_op_to_typst(node.name, node.op.params)
         result[_q(0)] = f"mqgate({name}, n: {width})"
 
     return result

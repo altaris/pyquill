@@ -122,15 +122,22 @@ def test_register() -> QuantumCircuit:
     return qc
 
 
-def test_2_control() -> QuantumCircuit:
-    qc = QuantumCircuit(3)
-    qc.ccx(0, 1, 2)
-    qc.ccx(2, 0, 1)
-    qc.ccx(2, 1, 0)
-    qc.ccz(0, 1, 2)
+def test_controls() -> QuantumCircuit:
+    qc = QuantumCircuit(5)
     qc.cswap(2, 0, 1)
     qc.cswap(1, 0, 2)
     qc.cswap(0, 1, 2)
+    qc.ccx(0, 1, 2)
+    qc.ccx(2, 0, 1)
+    qc.ccx(2, 1, 0)
+    qc.append(HGate().control(3), [0, 1, 2, 3])
+    qc.append(HGate().control(3), [3, 0, 1, 2])
+    qc.append(HGate().control(3), [2, 3, 0, 1])
+    qc.append(HGate().control(3), [1, 2, 3, 0])
+    qc.append(RXXGate(3 * np.pi / 2).control(3), [0, 1, 2, 3, 4])
+    qc.append(RXXGate(3 * np.pi / 2).control(3), [4, 0, 1, 2, 3])
+    qc.append(RXXGate(3 * np.pi / 2).control(3), [3, 4, 0, 1, 2])
+    qc.append(RXXGate(3 * np.pi / 2).control(3), [2, 3, 4, 0, 1])
     return qc
 
 
