@@ -77,13 +77,8 @@ def easy_op_to_typst(op_name: str, parameters: list) -> str:
         "h": "$H$",
         "id": "$I$",
         "iswap": '"iSWAP"',
-        # "ms": '"GMS"',  # TODO:
         "p": "$P({0})$",
-        # "pauli": "$$", # TODO: maybe?
-        # "prepare_state": "State Preparation",  # TODO:
         "r": "$R({0})$",
-        # "rcccx": "$$",
-        # "rccx": "$$",
         "rv": "$R_V ({0}, {1}, {2})$",
         "rx": "$R_X ({0})$",
         "rxx": "$R_(X X) ({0})$",
@@ -105,6 +100,11 @@ def easy_op_to_typst(op_name: str, parameters: list) -> str:
         "x": "$X$",
         "y": "$Y$",
         "z": "$Z$",
+        # "ms": '"GMS"',  # TODO:
+        # "pauli": "$$", # TODO: maybe?
+        # "prepare_state": "State Preparation",  # TODO:
+        # "rcccx": "$$",
+        # "rccx": "$$",
     }
     if typst := easy_gates.get(op_name):
         if op_name == "rv":
@@ -170,16 +170,20 @@ def render_opnode(
     result: dict[Qubit, str] = {}
 
     # Special cases
-    if op_name == "cz":
-        q0, q1 = qargs[:2]
-        ri = qubits_abs_idx[q1] - qubits_abs_idx[q0]
-        result[q0], result[q1] = f"ctrl({ri})", "ctrl(0)"
+    if op_name == "barrier":
+        # TODO: only call slice() on first wire
+        for q in qubits_abs_idx:
+            result[q] = 'slice(stroke: (paint: black, dash: "solid"))'
     elif op_name == "cp":
         q0, q1 = qargs[:2]
         ri = qubits_abs_idx[q1] - qubits_abs_idx[q0]
         theta = as_fraction_of_pi(node.op.params[0])
         result[q0] = f"ctrl({ri}, wire-label: ${theta}$)"
         result[q1] = "ctrl(0)"
+    elif op_name == "cz":
+        q0, q1 = qargs[:2]
+        ri = qubits_abs_idx[q1] - qubits_abs_idx[q0]
+        result[q0], result[q1] = f"ctrl({ri})", "ctrl(0)"
     elif op_name == "p":
         theta = as_fraction_of_pi(node.op.params[0])
         result[qargs[0]] = f"phase(${theta}$)"
