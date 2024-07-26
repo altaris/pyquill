@@ -36,6 +36,7 @@ def _n_wires(
     return max(iai) - min(iai) + 1
 
 
+# pylint: disable=too-many-return-statements
 def as_fraction_of_pi(theta: float) -> str:
     """
     Represents a float as an integer fraction of pi, as a typst math string.
@@ -109,7 +110,39 @@ def easy_op_to_typst(op_name: str, parameters: list) -> str:
         if op_name == "rv":
             return typst.format(*parameters)
         return typst.format(*map(as_fraction_of_pi, parameters))
+    print("Unknown gate:", op_name)
     return '"???"'
+
+
+def render_gate_box(
+    node: DAGOpNode,
+    qubits_abs_idx: dict[Qubit, int],
+    n_controls: int = 0,
+    op_name: str | None = None,
+) -> str:
+    """
+    Renders a gate which can be represented as a box, e.g. `H` or `RXX`, but not
+    `X`, `RZZ` or a phase gate.
+
+    Args:
+        node (DAGOpNode):
+        qubits_abs_idx (dict[Qubit, int]):
+        n_controls (int, optional):
+        op_name (str | None, optional): To override the node's name.
+
+    Returns:
+        str:
+    """
+    n_wires = _n_wires(node, qubits_abs_idx, n_controls)
+    tpst = easy_op_to_typst(op_name or node.name[n_controls:], node.op.params)
+    if n_wires == 1:
+        return tpst
+    (_, min_qarg_ai), inputs = _min_qarg(node, qubits_abs_idx, n_controls), []
+    for i, q in enumerate(node.qargs[n_controls:]):
+        j = qubits_abs_idx[q] - min_qarg_ai
+        inputs.append(f'(qubit: {j}, label: "{i}")')
+    clause = ", ".join(inputs)
+    return f"mqgate({tpst}, n: {n_wires}, inputs: ({clause}), width: 5em)"
 
 
 def render_opnode(
@@ -161,20 +194,8 @@ def render_opnode(
 
     # Generic gate
     else:
-        n_wires = _n_wires(node, qubits_abs_idx)
-        tpst = easy_op_to_typst(node.name, node.op.params)
-        min_qarg, min_qarg_ai = _min_qarg(node, qubits_abs_idx)
-        if n_wires == 1:
-            result[min_qarg] = tpst
-        else:
-            inputs = []
-            for i, q in enumerate(node.qargs):
-                j = qubits_abs_idx[q] - min_qarg_ai
-                inputs.append(f'(qubit: {j}, label: "{i}")')
-            clause = ", ".join(inputs)
-            result[min_qarg] = (
-                f"mqgate({tpst}, n: {n_wires}, inputs: ({clause}), width: 5em)"
-            )
+        min_qarg, _ = _min_qarg(node, qubits_abs_idx)
+        result[min_qarg] = render_gate_box(node, qubits_abs_idx)
 
     return result
 
@@ -198,29 +219,30 @@ def render_opnode_crtl(
 
     # Determine the number of controls and the gate name
     if node.name.startswith("cc"):
-        n_contols, gate = 2, node.name[2:]
-    elif match := re.match(r"^c(\d+)(.*)$", node.name):
-        n_contols, gate = int(match.group(1)), match.group(2)
+        n_controls, op_name = 2, node.name[2:]
+    elif match := re.match(r"^c(\d+)\w.*$", node.name):
+        n_controls = int(match.group(1))
+        op_name = node.name[len(str(n_controls)) + 1 :]
     else:
-        n_contols, gate = 1, node.name[1:]
+        n_controls, op_name = 1, node.name[1:]
 
     # Draw vertical line for all controls
     result = {}
-    min_in_q, min_in_q_ai = _min_qarg(node, qubits_abs_idx, n_contols)
-    for q_ctrl in node.qargs[:n_contols]:
+    min_in_q, min_in_q_ai = _min_qarg(node, qubits_abs_idx, n_controls)
+    for q_ctrl in node.qargs[:n_controls]:
         tgt = min_in_q_ai - qubits_abs_idx[q_ctrl]
         result[q_ctrl] = f"ctrl({tgt})"
 
     # Render controlled gate
-    n_wires = _n_wires(node, qubits_abs_idx, n_contols)
-    if gate == "swap":
-        q1, q2 = node.qargs[n_contols : n_contols + 2]
+    if op_name == "swap":
+        q1, q2 = node.qargs[n_controls : n_controls + 2]
         swp = qubits_abs_idx[q2] - qubits_abs_idx[q1]
         result[q1], result[q2] = f"swap({swp})", "targX()"
-    elif gate == "x":
+    elif op_name == "x":
         result[node.qargs[-1]] = "targ()"
     else:
-        tpst = easy_op_to_typst(gate, node.op.params)
-        result[min_in_q] = f"mqgate({tpst}, n: {n_wires}, width: 5em)"
+        result[min_in_q] = render_gate_box(
+            node, qubits_abs_idx, n_controls, op_name
+        )
 
     return result
