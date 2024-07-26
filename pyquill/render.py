@@ -130,57 +130,37 @@ def render_opnode(
     """
     result: dict[Qubit, str] = {}
 
+    # Special cases
     if node.name == "cz":
         q0, q1 = node.qargs[:2]
         ri = qubits_abs_idx[q1] - qubits_abs_idx[q0]
         result[q0], result[q1] = f"ctrl({ri})", "ctrl(0)"
-
     elif node.name == "cp":
         q0, q1 = node.qargs[:2]
         ri = qubits_abs_idx[q1] - qubits_abs_idx[q0]
         theta = as_fraction_of_pi(node.op.params[0])
         result[q0] = f"ctrl({ri}, wire-label: ${theta}$)"
         result[q1] = "ctrl(0)"
-
     elif node.name == "p":
         theta = as_fraction_of_pi(node.op.params[0])
         result[node.qargs[0]] = f"phase(${theta}$)"
-
     elif node.name == "rzz":
         q0, q1 = node.qargs[:2]
         ri = qubits_abs_idx[q1] - qubits_abs_idx[q0]
         theta = as_fraction_of_pi(node.op.params[0])
         result[q0] = f"ctrl({ri}, wire-label: $Z Z ({theta})$)"
         result[q1] = "ctrl(0)"
-
     elif node.name == "swap":
         q0, q1 = node.qargs[:2]
         ri = qubits_abs_idx[q1] - qubits_abs_idx[q0]
         result[q0], result[q1] = f"swap({ri})", "targX()"
 
-    elif node.name.startswith("c"):  # controlled gate
-        if node.name.startswith("cc"):
-            n_contols, gate = 2, node.name[2:]
-        elif match := re.match(r"^c(\d+)(.*)$", node.name):
-            n_contols, gate = int(match.group(1)), match.group(2)
-        else:
-            n_contols, gate = 1, node.name[1:]
-        min_in_q, min_in_q_ai = _min_qarg(node, qubits_abs_idx, n_contols)
-        n_wires = _n_wires(node, qubits_abs_idx, n_contols)
-        for q_ctrl in node.qargs[:n_contols]:
-            tgt = min_in_q_ai - qubits_abs_idx[q_ctrl]
-            result[q_ctrl] = f"ctrl({tgt})"
-        if gate == "swap":
-            q1, q2 = node.qargs[n_contols : n_contols + 2]
-            swp = qubits_abs_idx[q2] - qubits_abs_idx[q1]
-            result[q1], result[q2] = f"swap({swp})", "targX()"
-        elif gate == "x":
-            result[node.qargs[-1]] = "targ()"
-        else:
-            tpst = easy_op_to_typst(gate, node.op.params)
-            result[min_in_q] = f"mqgate({tpst}, n: {n_wires}, width: 5em)"
+    # Controlled gate
+    elif node.name.startswith("c") and len(node.qargs) >= 2:
+        return render_opnode_crtl(node, qubits_abs_idx)
 
-    else:  # Generic gate
+    # Generic gate
+    else:
         n_wires = _n_wires(node, qubits_abs_idx)
         tpst = easy_op_to_typst(node.name, node.op.params)
         min_qarg, min_qarg_ai = _min_qarg(node, qubits_abs_idx)
@@ -195,5 +175,52 @@ def render_opnode(
             result[min_qarg] = (
                 f"mqgate({tpst}, n: {n_wires}, inputs: ({clause}), width: 5em)"
             )
+
+    return result
+
+
+def render_opnode_crtl(
+    node: DAGOpNode, qubits_abs_idx: dict[Qubit, int]
+) -> dict[Qubit, str]:
+    """
+    Like `render_opnode`, but for controlled gates. The node's opname must start
+    with a 'c'.
+
+    Args:
+        node (DAGOpNode):
+        qubits_abs_idx (dict[Qubit, int]):
+
+    Returns:
+        dict[Qubit, str]:
+    """
+    if not node.name.startswith("c"):
+        raise ValueError("This function is only accepts controlled gates.")
+
+    # Determine the number of controls and the gate name
+    if node.name.startswith("cc"):
+        n_contols, gate = 2, node.name[2:]
+    elif match := re.match(r"^c(\d+)(.*)$", node.name):
+        n_contols, gate = int(match.group(1)), match.group(2)
+    else:
+        n_contols, gate = 1, node.name[1:]
+
+    # Draw vertical line for all controls
+    result = {}
+    min_in_q, min_in_q_ai = _min_qarg(node, qubits_abs_idx, n_contols)
+    for q_ctrl in node.qargs[:n_contols]:
+        tgt = min_in_q_ai - qubits_abs_idx[q_ctrl]
+        result[q_ctrl] = f"ctrl({tgt})"
+
+    # Render controlled gate
+    n_wires = _n_wires(node, qubits_abs_idx, n_contols)
+    if gate == "swap":
+        q1, q2 = node.qargs[n_contols : n_contols + 2]
+        swp = qubits_abs_idx[q2] - qubits_abs_idx[q1]
+        result[q1], result[q2] = f"swap({swp})", "targX()"
+    elif gate == "x":
+        result[node.qargs[-1]] = "targ()"
+    else:
+        tpst = easy_op_to_typst(gate, node.op.params)
+        result[min_in_q] = f"mqgate({tpst}, n: {n_wires}, width: 5em)"
 
     return result
