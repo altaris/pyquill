@@ -10,10 +10,10 @@ from qiskit.circuit.library import *
 
 from pyquill import draw
 
-OUTPUT_FILE = Path("test/test.typ")
+OUTPUT_DIR = Path("tests")
 
 
-def test_000_simple() -> QuantumCircuit:
+def test_simple() -> QuantumCircuit:
     qc = QuantumCircuit(3)
     qc.h(0)
     qc.cx(0, 1)
@@ -153,7 +153,8 @@ def test_controls() -> QuantumCircuit:
 
 
 if __name__ == "__main__":
-    content = (
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    preamble = (
         '#import "@preview/physica:0.9.3": *\n'
         '#import "@preview/quill:0.3.0": *\n'
         '#set page("a4", flipped: true, numbering: "1 / 1")\n'
@@ -164,13 +165,20 @@ if __name__ == "__main__":
         for k, v in globals().items()
         if k.startswith("test_") and callable(v)
     }
-    # test_functions = dict(sorted(test_functions.items(), key=lambda x: x[0]))
+    renderings: dict[str, tuple[str, str]] = {}
     for name, test in test_functions.items():
         print(name)
         qc = test()
         a, b = qc.draw(fold=-1), draw(qc)
-        content += f"= `{name}`\n```\n{a}\n```\n{b}\n#pagebreak()\n"
-    OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with OUTPUT_FILE.open(mode="w", encoding="utf-8") as fp:
-        fp.write(content)
-    typst.compile(OUTPUT_FILE, OUTPUT_FILE.with_suffix(".pdf"))
+        renderings[name] = a, b
+        file_path = OUTPUT_DIR / f"{name}.typ"
+        with file_path.open("w", encoding="utf-8") as fp:
+            fp.write(preamble)
+            fp.write(f"= `{name}`\n```\n{a}\n```\n{b}")
+        typst.compile(file_path, file_path.with_suffix(".pdf"))
+    file_path = OUTPUT_DIR / "all.typ"
+    with file_path.open("w", encoding="utf-8") as fp:
+        fp.write(preamble)
+        for name, (a, b) in renderings.items():
+            fp.write(f"= `{name}`\n```\n{a}\n```\n{b}\n#pagebreak()\n")
+    typst.compile(file_path, file_path.with_suffix(".pdf"))

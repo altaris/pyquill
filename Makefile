@@ -13,6 +13,10 @@ PYTHON		= python3.11
 
 all: format typecheck lint
 
+.PHONY: clean
+clean:
+	-rm -r tests
+
 .PHONY: docs
 docs:
 	-@mkdir $(DOCS_PATH) > /dev/null 2>&1
@@ -31,6 +35,10 @@ format:
 .PHONY: lint
 lint:
 	$(PYLINT) $(SRC_PATH)
+
+.PHONY: tests
+tests:
+	$(PYTHON) tests.py
 
 .PHONY: typecheck
 typecheck:
