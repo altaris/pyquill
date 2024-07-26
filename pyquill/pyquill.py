@@ -12,41 +12,8 @@ from qiskit.visualization.circuit._utils import (
 from .render import render_opnode
 
 
-def draw(
-    qc: QuantumCircuit, leading_hash: bool = True, imports: bool = False
-) -> str:
-    """
-    Renders a quantum circuit in typst using the `quantum-circuit` environment
-    of the [`quill` package](https://typst.app/universe/package/quill).
-
-    Args:
-        qc (QuantumCircuit):
-        leading_hash (bool, optional):
-        imports (bool, optional): Does not override `leading_hash`, i.e. it is
-            possible (but not desirable) to have `leading_hash=False` but
-            `imports=True`.
-    """
-    matrix = step2(qc, step1(qc))
-    result = ",".join(",".join(row) for row in matrix)
-    result = "quantum-circuit(" + result + ")"
-    if leading_hash:
-        result = "#" + result
-    if imports:
-        result = (
-            "\n".join(
-                [
-                    '#import "@preview/physica:0.9.3": *',
-                    '#import "@preview/quill:0.3.0": *',
-                ]
-            )
-            + "\n"
-            + result
-        )
-    return result
-
-
 # TODO: Find a better name
-def step1(qc: QuantumCircuit) -> dict[Qubit, dict[int, str]]:
+def _step1(qc: QuantumCircuit) -> dict[Qubit, dict[int, str]]:
     """
     Generates a two-levels dictionary of typst instruction for each qubit in
     the input quantum circuit.
@@ -71,12 +38,13 @@ def step1(qc: QuantumCircuit) -> dict[Qubit, dict[int, str]]:
 
 
 # TODO: Find a better name
-def step2(
+def _step2(
     qc: QuantumCircuit, renderers: dict[Qubit, dict[int, str]]
 ) -> list[list[str]]:
     """
-    Takes the two-levels dictionary of renderers produced by `step1` and
-    converts it into a matrix of instructions for the `quill` typst package.
+    Takes the two-levels dictionary of typst instruction strings produced by
+    `_step1` and converts it into a matrix of instructions for the `quill` typst
+    package.
     """
     depth = max(a for b in renderers.values() for a in b.keys()) + 1
     result: list[list[str]] = []
@@ -89,4 +57,40 @@ def step2(
         if i != qc.num_qubits - 1:
             wire.append("[\\ ]")
         result.append(wire)
+    return result
+
+
+def draw(
+    qc: QuantumCircuit, leading_hash: bool = True, imports: bool = False
+) -> str:
+    """
+    Draws a quantum circuit in typst using the `quantum-circuit` environment
+    of the [`quill` package](https://typst.app/universe/package/quill).
+
+    Args:
+        qc (QuantumCircuit):
+        leading_hash (bool, optional): Wether the typst code should look like
+            `#quantum-circuit(...)` or `quantum-circuit(...)`.
+        imports (bool, optional): If set to `True`, packages
+            `@preview/physica:0.9.3` and `@preview/quill:0.3.0` are fully imported.
+            Otherwise, no import directive are prepended to the output. This
+            option does not override `leading_hash`, i.e. it is possible (but
+            not desirable) to have `leading_hash=False` but `imports=True`.
+    """
+    matrix = _step2(qc, _step1(qc))
+    result = ",".join(",".join(row) for row in matrix)
+    result = "quantum-circuit(" + result + ")"
+    if leading_hash:
+        result = "#" + result
+    if imports:
+        result = (
+            "\n".join(
+                [
+                    '#import "@preview/physica:0.9.3": *',
+                    '#import "@preview/quill:0.3.0": *',
+                ]
+            )
+            + "\n"
+            + result
+        )
     return result

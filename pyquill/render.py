@@ -11,14 +11,15 @@ from qiskit.dagcircuit import DAGOpNode
 
 
 def _min_qarg(
-    node: DAGOpNode, qubits_abs_idx: dict[Qubit, int], offset: int = 0
+    node: DAGOpNode, qubits_abs_idx: dict[Qubit, int], qargs_offset: int = 0
 ) -> tuple[Qubit, int]:
     """
     Return the input qubit with the minimum absolute index, and said index. If
-    `offset` is specified, only consider qargs starting from that index.
+    `qargs_offset` is specified, only consider qargs starting from that index.
     """
-    min_q, min_ai = node.qargs[offset], qubits_abs_idx[node.qargs[offset]]
-    for q in node.qargs[offset:]:
+    min_q = node.qargs[qargs_offset]
+    min_ai = qubits_abs_idx[node.qargs[qargs_offset]]
+    for q in node.qargs[qargs_offset:]:
         ai = qubits_abs_idx[q]
         if ai < min_ai:
             min_q, min_ai = q, ai
@@ -26,13 +27,13 @@ def _min_qarg(
 
 
 def _n_wires(
-    node: DAGOpNode, qubits_abs_idx: dict[Qubit, int], offset: int = 0
+    node: DAGOpNode, qubits_abs_idx: dict[Qubit, int], qargs_offset: int = 0
 ) -> int:
     """
     Return the width of the gate, i.e. the number of wires it spans over. If
-    `offset` is specified, only consider qargs starting from that index.
+    `qargs_offset` is specified, only consider qargs starting from that index.
     """
-    iai = [qubits_abs_idx[q] for q in node.qargs[offset:]]
+    iai = [qubits_abs_idx[q] for q in node.qargs[qargs_offset:]]
     return max(iai) - min(iai) + 1
 
 
@@ -78,7 +79,7 @@ def easy_op_to_typst(op_name: str, parameters: list) -> str:
         "iswap": '"iSWAP"',
         # "ms": '"GMS"',  # TODO:
         "p": "$P({0})$",
-        # "pauli": "$$",
+        # "pauli": "$$", # TODO: maybe?
         # "prepare_state": "State Preparation",  # TODO:
         "r": "$R({0})$",
         # "rcccx": "$$",
@@ -92,7 +93,6 @@ def easy_op_to_typst(op_name: str, parameters: list) -> str:
         "rzx": "$R_(Z X) ({0})$",
         "s": "$S$",
         "sdg": "$S^dagger$",
-        # "swap": "$$",
         "sx": "$sqrt(X)$",
         "sxdg": "$sqrt(X)^dagger$",
         "t": "$T$",
@@ -110,7 +110,6 @@ def easy_op_to_typst(op_name: str, parameters: list) -> str:
         if op_name == "rv":
             return typst.format(*parameters)
         return typst.format(*map(as_fraction_of_pi, parameters))
-    print("Unknown gate:", op_name)
     return '"???"'
 
 
@@ -146,7 +145,10 @@ def render_gate_box(
 
 
 def render_opnode(
-    node: DAGOpNode, qubits_abs_idx: dict[Qubit, int]
+    node: DAGOpNode,
+    qubits_abs_idx: dict[Qubit, int],
+    qargs_offset: int = 0,
+    op_name: str | None = None,
 ) -> dict[Qubit, str]:
     """
     Given an opnode and a mapping of qubits to their absolute indices, returns
@@ -157,45 +159,57 @@ def render_opnode(
         node (DAGOpNode):
         qubits_abs_idx (dict[Qubit, int]): Mapping of qubits to their
             absolute indices.
+        qargs_offset (int, optional): If set, the first `qargs_offset` qargs
+            are ignored.
+        op_name (str | None, optional): To override the node's name.
 
     Returns:
         dict[Qubit, str]:
     """
+    op_name, qargs = op_name or node.name, node.qargs[qargs_offset:]
     result: dict[Qubit, str] = {}
 
     # Special cases
-    if node.name == "cz":
-        q0, q1 = node.qargs[:2]
+    if op_name == "cz":
+        q0, q1 = qargs[:2]
         ri = qubits_abs_idx[q1] - qubits_abs_idx[q0]
         result[q0], result[q1] = f"ctrl({ri})", "ctrl(0)"
-    elif node.name == "cp":
-        q0, q1 = node.qargs[:2]
+    elif op_name == "cp":
+        q0, q1 = qargs[:2]
         ri = qubits_abs_idx[q1] - qubits_abs_idx[q0]
         theta = as_fraction_of_pi(node.op.params[0])
         result[q0] = f"ctrl({ri}, wire-label: ${theta}$)"
         result[q1] = "ctrl(0)"
-    elif node.name == "p":
+    elif op_name == "p":
         theta = as_fraction_of_pi(node.op.params[0])
-        result[node.qargs[0]] = f"phase(${theta}$)"
-    elif node.name == "rzz":
-        q0, q1 = node.qargs[:2]
+        result[qargs[0]] = f"phase(${theta}$)"
+    elif op_name == "rzz":
+        q0, q1 = qargs[:2]
         ri = qubits_abs_idx[q1] - qubits_abs_idx[q0]
         theta = as_fraction_of_pi(node.op.params[0])
         result[q0] = f"ctrl({ri}, wire-label: $Z Z ({theta})$)"
         result[q1] = "ctrl(0)"
-    elif node.name == "swap":
-        q0, q1 = node.qargs[:2]
+    elif op_name == "swap":
+        q0, q1 = qargs[:2]
         ri = qubits_abs_idx[q1] - qubits_abs_idx[q0]
         result[q0], result[q1] = f"swap({ri})", "targX()"
+    elif op_name == "x" and node.op.name.endswith("cx"):
+        result[qargs[0]] = "targ()"
 
     # Controlled gate
-    elif node.name.startswith("c") and len(node.qargs) >= 2:
-        return render_opnode_crtl(node, qubits_abs_idx)
+    elif op_name.startswith("c") and len(qargs) >= 2:
+        # TODO: make a recursive call to render_opnode instead?
+        return render_opnode_crtl(node=node, qubits_abs_idx=qubits_abs_idx)
 
-    # Generic gate
+    # Generic (boxed) gate
     else:
-        min_qarg, _ = _min_qarg(node, qubits_abs_idx)
-        result[min_qarg] = render_gate_box(node, qubits_abs_idx)
+        min_qarg, _ = _min_qarg(node, qubits_abs_idx, qargs_offset)
+        result[min_qarg] = render_gate_box(
+            node=node,
+            qubits_abs_idx=qubits_abs_idx,
+            n_controls=qargs_offset,
+            op_name=op_name,
+        )
 
     return result
 
@@ -228,21 +242,18 @@ def render_opnode_crtl(
 
     # Draw vertical line for all controls
     result = {}
-    min_in_q, min_in_q_ai = _min_qarg(node, qubits_abs_idx, n_controls)
+    _, min_in_q_ai = _min_qarg(node, qubits_abs_idx, n_controls)
     for q_ctrl in node.qargs[:n_controls]:
         tgt = min_in_q_ai - qubits_abs_idx[q_ctrl]
         result[q_ctrl] = f"ctrl({tgt})"
 
     # Render controlled gate
-    if op_name == "swap":
-        q1, q2 = node.qargs[n_controls : n_controls + 2]
-        swp = qubits_abs_idx[q2] - qubits_abs_idx[q1]
-        result[q1], result[q2] = f"swap({swp})", "targX()"
-    elif op_name == "x":
-        result[node.qargs[-1]] = "targ()"
-    else:
-        result[min_in_q] = render_gate_box(
-            node, qubits_abs_idx, n_controls, op_name
+    result.update(
+        render_opnode(
+            node=node,
+            qubits_abs_idx=qubits_abs_idx,
+            qargs_offset=n_controls,
+            op_name=op_name,
         )
-
+    )
     return result
