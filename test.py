@@ -85,6 +85,17 @@ def test_2_qubit_gates() -> QuantumCircuit:
     return qc
 
 
+def test_input_indices() -> QuantumCircuit:
+    qc = QuantumCircuit(3)
+    qc.rxx(np.pi, 0, 1)
+    qc.rxx(np.pi, 1, 0)
+    qc.rxx(np.pi, 1, 2)
+    qc.rxx(np.pi, 2, 1)
+    qc.rxx(np.pi, 0, 2)
+    qc.rxx(np.pi, 2, 0)
+    return qc
+
+
 def test_parallel_cx() -> QuantumCircuit:
     qc = QuantumCircuit(4)
     qc.cx(0, 1)

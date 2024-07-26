@@ -96,11 +96,23 @@ def render_opnode(
 
     Args:
         node (DAGOpNode):
-        indices (dict[Qubit, int]):
+        indices (dict[Qubit, int]): Mapping of qubits to their
+            absolute indices.
 
     Returns:
         dict[Qubit, str]:
     """
+
+    def _min_iq() -> Qubit:
+        """
+        Input qubit whose absolude index is minimal among the absolute index of
+        all input qubits.
+        """
+        return {v: k for k, v in indices.items()}[_min_iqai()]
+
+    def _min_iqai() -> int:
+        """Minimum absolute index of input qubits"""
+        return min(indices[q] for q in node.qargs)
 
     def _q(qarg_idx: int) -> Qubit:
         """Node's input qubit at the given index"""
@@ -145,7 +157,7 @@ def render_opnode(
         elif name == "Z":
             result[_q(2)] = "ctrl(0)"
         else:
-            result[_q(2)] = f"mqgate(${name}$, n: {width})"
+            result[_q(2)] = f"mqgate(${name}$, n: {width}, width: 5em)"
 
     elif node.name.startswith("c"):  # controlled gate
         if node.name.startswith("cc"):
@@ -167,12 +179,22 @@ def render_opnode(
             result[_q(-1)] = "targ()"
         else:
             t = easy_op_to_typst(gate, node.op.params)
-            result[_q(n_contols)] = f"mqgate({t}, n: {width})"
+            result[_q(n_contols)] = f"mqgate({t}, n: {width}, width: 5em)"
 
     else:  # Generic gate
         iai = [indices[q] for q in node.qargs]
         width = max(iai) - min(iai) + 1
         name = easy_op_to_typst(node.name, node.op.params)
-        result[_q(0)] = f"mqgate({name}, n: {width})"
+        if width == 1:
+            result[_min_iq()] = f"mqgate({name}, n: {width}, width: 5em)"
+        else:
+            inputs = []
+            for i, q in enumerate(node.qargs):
+                j = indices[q] - _min_iqai()
+                inputs.append(f'(qubit: {j}, label: "{i}")')
+            a = ", ".join(inputs)
+            result[_min_iq()] = (
+                f"mqgate({name}, n: {width}, inputs: ({a}), width: 5em)"
+            )
 
     return result
