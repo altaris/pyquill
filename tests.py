@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 import typst
-from qiskit import QuantumCircuit, QuantumRegister
+from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister
 from qiskit.circuit.library import *
 
 from pyquill import draw
@@ -160,12 +160,22 @@ def test_controls() -> QuantumCircuit:
     return qc
 
 
+# def test_controls_classical() -> QuantumCircuit:
+#     q, c = QuantumRegister(5, "psi"), ClassicalRegister(2, "c")
+#     qc = QuantumCircuit(q, c)
+#     qc.append(SwapGate().c_if(3), [q[0], q[1], q[2], c[0], c[1]])
+#     return qc
+
+
 def test_measure() -> QuantumCircuit:
-    qc = QuantumCircuit(2, 2)
+    qc = QuantumCircuit(2, 4)
     qc.h(0)
     qc.cx(0, 1)
     qc.measure(0, 0)
     qc.measure(1, 1)
+    qc.barrier()
+    qc.measure(0, 3)
+    qc.measure(1, 2)
     qc.measure_all()
     qc.measure_all()
     return qc

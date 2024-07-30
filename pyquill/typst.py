@@ -85,7 +85,7 @@ def as_fraction_of_pi(theta: float) -> str:
 
 
 # pylint: disable=protected-access
-def wire_name(register: Register, index: int) -> str:
+def wire_name(register: Register, index: int | None = None) -> str:
     """
     Creates a wire name (the labels on the very left of a wire in a quantum
     circuit diagram) from a register (quantum or classical) and an index.
@@ -94,7 +94,7 @@ def wire_name(register: Register, index: int) -> str:
         name = register._name
     else:
         name = f'"{register._name}"'
-    if register.size > 1:
+    if index and register.size > 1:
         name = f"{name}_({index})"
     if isinstance(register, QuantumRegister):
         name = f"ket({name})"

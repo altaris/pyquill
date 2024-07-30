@@ -4,17 +4,17 @@
 
 from collections import defaultdict
 
-from qiskit.circuit import Bit, QuantumCircuit, Qubit
+from qiskit.circuit import QuantumCircuit
 from qiskit.visualization.circuit._utils import (
     _get_layered_instructions as get_layered_instructions,
 )
 
-from .render import render_opnode
+from .render import Wire, render_opnode
 from .typst import wire_name
 
 
 # TODO: Find a better name
-def _step1(qc: QuantumCircuit) -> dict[Bit, dict[int, str]]:
+def _step1(qc: QuantumCircuit) -> dict[Wire, dict[int, str]]:
     """
     Generates a two-levels dictionary of typst instruction for each bit (quantum
     and classical) in the input quantum circuit.
@@ -29,10 +29,10 @@ def _step1(qc: QuantumCircuit) -> dict[Bit, dict[int, str]]:
         dict[Bit, dict[int, str]]:
     """
     _, _, layers = get_layered_instructions(qc)
-    indices: dict[Bit, int] = {
-        q: i for i, q in enumerate(qc.qubits + qc.clbits)
+    indices: dict[Wire, int] = {
+        q: i for i, q in enumerate(qc.qubits + qc.cregs)
     }
-    result: dict[Bit, dict[int, str]] = defaultdict(dict)
+    result: dict[Wire, dict[int, str]] = defaultdict(dict)
     for depth, layer in enumerate(layers):
         for node in layer:
             for q, r in render_opnode(node, indices).items():
@@ -42,7 +42,7 @@ def _step1(qc: QuantumCircuit) -> dict[Bit, dict[int, str]]:
 
 # TODO: Find a better name
 def _step2(
-    qc: QuantumCircuit, renderers: dict[Bit, dict[int, str]]
+    qc: QuantumCircuit, renderers: dict[Wire, dict[int, str]]
 ) -> list[list[str]]:
     """
     Takes the two-levels dictionary of typst instruction strings produced by
@@ -51,15 +51,26 @@ def _step2(
     """
     depth = max(a for b in renderers.values() for a in b.keys()) + 1
     result: list[list[str]] = []
-    for i, q in enumerate(qc.qubits + qc.clbits):
+    for i, q in enumerate(qc.qubits):
         u, wn = renderers.get(q, {}), wire_name(q._register, q._index)
         wire = [f"lstick({wn})"]
-        if not isinstance(q, Qubit):
-            wire.append("setwire(2)")
+        if any(r.size > 1 for r in qc.cregs):
+            # Some classical wires will have the nwire(...) instruction
+            wire.append("1")
         for d in range(depth):
             wire.append(u.get(d, "1"))
         wire.append("1")
-        if i != qc.num_qubits + qc.num_clbits - 1:
+        if qc.cregs or i < qc.num_qubits - 1:
+            wire.append("[\\ ]")
+        result.append(wire)
+    for i, r in enumerate(qc.cregs):
+        u, wn = renderers.get(r, {}), wire_name(r)
+        wire = [f"lstick({wn})", "setwire(2)"]
+        if r.size > 1:
+            wire.append(f"nwire({r.size})")
+        for d in range(depth):
+            wire.append(u.get(d, "1"))
+        if i < len(qc.cregs) - 1:
             wire.append("[\\ ]")
         result.append(wire)
     return result
