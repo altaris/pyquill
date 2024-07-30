@@ -3,11 +3,11 @@ Dataclasses to encapsulate rendering information for gates etc.
 """
 
 import re
-from fractions import Fraction
 
-import numpy as np
 from qiskit.circuit import Bit, Qubit
 from qiskit.dagcircuit import DAGOpNode
+
+from .typst import as_fraction_of_pi
 
 
 def _min_qarg(
@@ -35,30 +35,6 @@ def _n_wires(
     """
     iai = [bits_abs_idx[q] for q in node.qargs[qargs_offset:]]
     return max(iai) - min(iai) + 1
-
-
-# pylint: disable=too-many-return-statements
-def as_fraction_of_pi(theta: float) -> str:
-    """
-    Represents a float as an integer fraction of pi, as a typst math string.
-    """
-    if theta == 0:
-        return "0"
-    fraction = Fraction(theta / np.pi).limit_denominator()
-    n, d = fraction.numerator, fraction.denominator
-    if n == 1:
-        if d == 1:
-            return "pi"
-        return f"pi / {d}"
-    if n == -1:
-        if d == 1:
-            return "-pi"
-        return f"-pi / {d}"
-    if d == 1:
-        return f"{n} pi"
-    if d == -1:
-        return f"-{n} pi"
-    return f"({n} pi) / {d}"
 
 
 def easy_op_to_typst(op_name: str, parameters: list) -> str:
@@ -188,6 +164,7 @@ def render_opnode(
         q0, c0 = qargs[0], node.cargs[0]
         ri = bits_abs_idx[c0] - bits_abs_idx[q0]
         result[q0], result[c0] = f"meter(target: {ri})", "ctrl(0)"
+        # result[c0] = f"ctrl(0, label: ((content: ${c0._index}$, pos: bottom)))"
     elif op_name == "p":
         theta = as_fraction_of_pi(node.op.params[0])
         result[qargs[0]] = f"phase(${theta}$)"

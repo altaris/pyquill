@@ -10,6 +10,7 @@ from qiskit.visualization.circuit._utils import (
 )
 
 from .render import render_opnode
+from .typst import wire_name
 
 
 # TODO: Find a better name
@@ -51,11 +52,9 @@ def _step2(
     depth = max(a for b in renderers.values() for a in b.keys()) + 1
     result: list[list[str]] = []
     for i, q in enumerate(qc.qubits + qc.clbits):
-        u, wire = renderers.get(q, {}), []
-        if isinstance(q, Qubit):
-            wire.append(f"lstick($ket({q._register.name}_{q._index})$)")
-        else:  # classical bit
-            wire.append(f"lstick(${q._register.name}_{q._index}$)")
+        u, wn = renderers.get(q, {}), wire_name(q._register, q._index)
+        wire = [f"lstick({wn})"]
+        if not isinstance(q, Qubit):
             wire.append("setwire(2)")
         for d in range(depth):
             wire.append(u.get(d, "1"))
