@@ -167,6 +167,7 @@ def test_measure() -> QuantumCircuit:
     qc.measure(0, 0)
     qc.measure(1, 1)
     qc.measure_all()
+    qc.measure_all()
     return qc
 
 

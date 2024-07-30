@@ -147,9 +147,12 @@ def render_opnode(
 
     # Special cases
     if op_name == "barrier":
-        # TODO: only call slice() on first wire
+        result[qargs[0]] = (
+            f'slice(n: {len(qargs)}, stroke: (paint: black, dash: "dashed"))'
+        )
         for q in bits_abs_idx:
-            result[q] = 'slice(stroke: (paint: black, dash: "solid"))'
+            if q != qargs[0]:
+                result[q] = "0"
     elif op_name == "cp":
         q0, q1 = qargs[:2]
         ri = bits_abs_idx[q1] - bits_abs_idx[q0]
