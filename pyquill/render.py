@@ -15,20 +15,23 @@ from .typst import as_fraction_of_pi
 Wire: TypeAlias = Qubit | ClassicalRegister
 
 
-def _min_qarg(
+def _min_max_qarg(
     node: DAGOpNode, wires_abs_idx: dict[Wire, int], qargs_offset: int = 0
-) -> tuple[Qubit, int]:
+) -> tuple[Qubit, int, Qubit, int]:
     """
-    Return the input qubit with the minimum absolute index, and said index. If
-    `qargs_offset` is specified, only consider qargs starting from that index.
+    Return the input qubit with the minimum wire index, said index, the input
+    qubit with the maximum wire index, and said index. If `qargs_offset` is
+    specified, only consider qargs starting from that index.
     """
-    min_q = node.qargs[qargs_offset]
-    min_ai = wires_abs_idx[node.qargs[qargs_offset]]
+    min_q = max_q = node.qargs[qargs_offset]
+    min_ai = max_ai = wires_abs_idx[node.qargs[qargs_offset]]
     for q in node.qargs[qargs_offset:]:
         ai = wires_abs_idx[q]
         if ai < min_ai:
             min_q, min_ai = q, ai
-    return min_q, min_ai
+        if ai > max_ai:
+            max_q, max_ai = q, ai
+    return min_q, min_ai, max_q, max_ai
 
 
 def _n_wires(
@@ -117,7 +120,8 @@ def render_gate_box(
     tpst = easy_op_to_typst(op_name or node.name[n_controls:], node.op.params)
     if n_wires == 1:
         return tpst
-    (_, min_qarg_ai), inputs = _min_qarg(node, wires_abs_idx, n_controls), []
+    _, min_qarg_ai, _, _ = _min_max_qarg(node, wires_abs_idx, n_controls)
+    inputs = []
     for i, q in enumerate(node.qargs[n_controls:]):
         j = wires_abs_idx[q] - min_qarg_ai
         inputs.append(f'(qubit: {j}, label: "{i}")')
@@ -125,11 +129,13 @@ def render_gate_box(
     return f"mqgate({tpst}, n: {n_wires}, inputs: ({clause}), width: 5em)"
 
 
+# pylint: disable=too-many-branches
 def render_opnode(
     node: DAGOpNode,
     wires_abs_idx: dict[Wire, int],
     qargs_offset: int = 0,
     op_name: str | None = None,
+    ignore_conditions: bool = False,
 ) -> dict[Wire, str]:
     """
     Given an opnode and a mapping of qubits to their absolute indices, returns
@@ -149,6 +155,12 @@ def render_opnode(
     """
     op_name, qargs = op_name or node.name, node.qargs[qargs_offset:]
     result: dict[Wire, str] = {}
+
+    # Gate with a classical condition
+    if node.op.condition and not ignore_conditions:
+        return render_opnode_cond(
+            node, wires_abs_idx, qargs_offset=qargs_offset, op_name=op_name
+        )
 
     # Special cases
     if op_name == "barrier":
@@ -193,11 +205,15 @@ def render_opnode(
     # Controlled gate
     elif op_name.startswith("c") and len(qargs) >= 2:
         # TODO: make a recursive call to render_opnode instead?
-        return render_opnode_crtl(node=node, wires_abs_idx=wires_abs_idx)
+        return render_opnode_crtl(
+            node=node,
+            wires_abs_idx=wires_abs_idx,
+            ignore_conditions=ignore_conditions,
+        )
 
     # Generic (boxed) gate
     else:
-        min_qarg, _ = _min_qarg(node, wires_abs_idx, qargs_offset)
+        min_qarg, _, _, _ = _min_max_qarg(node, wires_abs_idx, qargs_offset)
         result[min_qarg] = render_gate_box(
             node=node,
             wires_abs_idx=wires_abs_idx,
@@ -208,8 +224,44 @@ def render_opnode(
     return result
 
 
+def render_opnode_cond(
+    node: DAGOpNode, wires_abs_idx: dict[Wire, int], **kwargs
+) -> dict[Wire, str]:
+    """
+    Like `render_opnode`, but for a gates with a condition on a classical
+    register. `node.op.condition` cannot be `None`.
+
+
+    Args:
+        node (DAGOpNode):
+        wires_abs_idx (dict[Wire, int]):
+
+    Returns:
+        dict[Wire, str]:
+    """
+    if not node.op.condition:
+        raise ValueError("This function is only accepts conditioned gates.")
+    result = {}
+    _, _, _, qi = _min_max_qarg(node, wires_abs_idx)
+    c, val = node.op.condition
+    tgt = qi - wires_abs_idx[c]
+    result[c] = (
+        f"ctrl({tgt}, label: ((content: ${val}$, pos: bottom)), wire-count: 2)"
+    )
+    # Render conditioned gate
+    result.update(
+        render_opnode(
+            node=node,
+            wires_abs_idx=wires_abs_idx,
+            ignore_conditions=True,
+            **kwargs,
+        )
+    )
+    return result
+
+
 def render_opnode_crtl(
-    node: DAGOpNode, wires_abs_idx: dict[Wire, int]
+    node: DAGOpNode, wires_abs_idx: dict[Wire, int], **kwargs
 ) -> dict[Wire, str]:
     """
     Like `render_opnode`, but for controlled gates. The node's opname must start
@@ -236,7 +288,7 @@ def render_opnode_crtl(
 
     # Draw vertical line for all controls
     result = {}
-    _, min_in_q_ai = _min_qarg(node, wires_abs_idx, n_controls)
+    _, min_in_q_ai, _, _ = _min_max_qarg(node, wires_abs_idx, n_controls)
     for q_ctrl in node.qargs[:n_controls]:
         tgt = min_in_q_ai - wires_abs_idx[q_ctrl]
         result[q_ctrl] = f"ctrl({tgt})"
@@ -248,6 +300,7 @@ def render_opnode_crtl(
             wires_abs_idx=wires_abs_idx,
             qargs_offset=n_controls,
             op_name=op_name,
+            **kwargs,
         )
     )
     return result

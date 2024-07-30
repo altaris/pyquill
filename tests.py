@@ -160,11 +160,29 @@ def test_controls() -> QuantumCircuit:
     return qc
 
 
-# def test_controls_classical() -> QuantumCircuit:
-#     q, c = QuantumRegister(5, "psi"), ClassicalRegister(2, "c")
-#     qc = QuantumCircuit(q, c)
-#     qc.append(SwapGate().c_if(3), [q[0], q[1], q[2], c[0], c[1]])
-#     return qc
+def test_conditions() -> QuantumCircuit:
+    q, c = QuantumRegister(4, "psi"), ClassicalRegister(2, "c")
+    qc = QuantumCircuit(q, c)
+    qc.h(q[0]).c_if(c, 0)
+    # qc.h(q[1]).c_if(c, 1)
+    qc.h(q[2]).c_if(c, 2)
+    qc.barrier()
+    qc.append(TdgGate().control(3), [q[1], q[2], q[3], q[0]]).c_if(c, 0)
+    # qc.append(TdgGate().control(3), [q[2], q[3], q[0], q[1]]).c_if(c, 1)
+    qc.append(TdgGate().control(3), [q[3], q[0], q[1], q[2]]).c_if(c, 2)
+    qc.barrier()
+    qc.swap(q[0], q[1]).c_if(c, 0)
+    qc.swap(q[1], q[2]).c_if(c, 1)
+    qc.swap(q[2], q[0]).c_if(c, 2)
+    qc.barrier()
+    qc.cx(q[0], q[1]).c_if(c, 0)
+    qc.cx(q[1], q[2]).c_if(c, 1)
+    qc.cx(q[2], q[0]).c_if(c, 2)
+    qc.barrier()
+    qc.append(RZXGate(np.pi).control(2), [q[2], q[3], q[0], q[1]]).c_if(c, 0)
+    qc.append(RZXGate(np.pi).control(2), [q[0], q[1], q[2], q[3]]).c_if(c, 2)
+    qc.append(RZXGate(np.pi).control(2), [q[3], q[0], q[1], q[2]]).c_if(c, 3)
+    return qc
 
 
 def test_measure() -> QuantumCircuit:
