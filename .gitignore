@@ -174,4 +174,4 @@ cython_debug/
 # Test stuff
 test/
 tests/
-*.ipynb
+playground.*
