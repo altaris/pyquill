@@ -160,6 +160,15 @@ def test_controls() -> QuantumCircuit:
     return qc
 
 
+def test_measure() -> QuantumCircuit:
+    qc = QuantumCircuit(2, 2)
+    qc.h(0)
+    qc.cx(0, 1)
+    qc.measure(0, 0)
+    qc.measure(1, 1)
+    return qc
+
+
 if __name__ == "__main__":
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     preamble = (

@@ -4,7 +4,7 @@
 
 from collections import defaultdict
 
-from qiskit.circuit import QuantumCircuit, Qubit
+from qiskit.circuit import Bit, QuantumCircuit, Qubit
 from qiskit.visualization.circuit._utils import (
     _get_layered_instructions as get_layered_instructions,
 )
@@ -13,10 +13,10 @@ from .render import render_opnode
 
 
 # TODO: Find a better name
-def _step1(qc: QuantumCircuit) -> dict[Qubit, dict[int, str]]:
+def _step1(qc: QuantumCircuit) -> dict[Bit, dict[int, str]]:
     """
-    Generates a two-levels dictionary of typst instruction for each qubit in
-    the input quantum circuit.
+    Generates a two-levels dictionary of typst instruction for each bit (quantum
+    and classical) in the input quantum circuit.
 
     If `qc` is a quantum circuit, then `step1(qc)[q][d]` is a typst instruction
     for a gate for qubit `q` at depth `d`.
@@ -25,11 +25,13 @@ def _step1(qc: QuantumCircuit) -> dict[Qubit, dict[int, str]]:
         qc (QuantumCircuit):
 
     Returns:
-        dict[Qubit, dict[int, str]]:
+        dict[Bit, dict[int, str]]:
     """
     _, _, layers = get_layered_instructions(qc)
-    indices: dict[Qubit, int] = {q: i for i, q in enumerate(qc.qubits)}
-    result: dict[Qubit, dict[int, str]] = defaultdict(dict)
+    indices: dict[Bit, int] = {
+        q: i for i, q in enumerate(qc.qubits + qc.clbits)
+    }
+    result: dict[Bit, dict[int, str]] = defaultdict(dict)
     for depth, layer in enumerate(layers):
         for node in layer:
             for q, r in render_opnode(node, indices).items():
@@ -39,7 +41,7 @@ def _step1(qc: QuantumCircuit) -> dict[Qubit, dict[int, str]]:
 
 # TODO: Find a better name
 def _step2(
-    qc: QuantumCircuit, renderers: dict[Qubit, dict[int, str]]
+    qc: QuantumCircuit, renderers: dict[Bit, dict[int, str]]
 ) -> list[list[str]]:
     """
     Takes the two-levels dictionary of typst instruction strings produced by
@@ -48,13 +50,17 @@ def _step2(
     """
     depth = max(a for b in renderers.values() for a in b.keys()) + 1
     result: list[list[str]] = []
-    for i, q in enumerate(qc.qubits):
-        u = renderers.get(q, {})
-        wire = [f"lstick($ket({q._register.name}_{q._index})$)"]
+    for i, q in enumerate(qc.qubits + qc.clbits):
+        u, wire = renderers.get(q, {}), []
+        if isinstance(q, Qubit):
+            wire.append(f"lstick($ket({q._register.name}_{q._index})$)")
+        else:  # classical bit
+            wire.append(f"lstick(${q._register.name}_{q._index}$)")
+            wire.append("setwire(2)")
         for d in range(depth):
             wire.append(u.get(d, "1"))
         wire.append("1")
-        if i != qc.num_qubits - 1:
+        if i != qc.num_qubits + qc.num_clbits - 1:
             wire.append("[\\ ]")
         result.append(wire)
     return result

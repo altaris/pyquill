@@ -6,34 +6,34 @@ import re
 from fractions import Fraction
 
 import numpy as np
-from qiskit.circuit import Qubit
+from qiskit.circuit import Bit, Qubit
 from qiskit.dagcircuit import DAGOpNode
 
 
 def _min_qarg(
-    node: DAGOpNode, qubits_abs_idx: dict[Qubit, int], qargs_offset: int = 0
+    node: DAGOpNode, bits_abs_idx: dict[Bit, int], qargs_offset: int = 0
 ) -> tuple[Qubit, int]:
     """
     Return the input qubit with the minimum absolute index, and said index. If
     `qargs_offset` is specified, only consider qargs starting from that index.
     """
     min_q = node.qargs[qargs_offset]
-    min_ai = qubits_abs_idx[node.qargs[qargs_offset]]
+    min_ai = bits_abs_idx[node.qargs[qargs_offset]]
     for q in node.qargs[qargs_offset:]:
-        ai = qubits_abs_idx[q]
+        ai = bits_abs_idx[q]
         if ai < min_ai:
             min_q, min_ai = q, ai
     return min_q, min_ai
 
 
 def _n_wires(
-    node: DAGOpNode, qubits_abs_idx: dict[Qubit, int], qargs_offset: int = 0
+    node: DAGOpNode, bits_abs_idx: dict[Bit, int], qargs_offset: int = 0
 ) -> int:
     """
     Return the width of the gate, i.e. the number of wires it spans over. If
     `qargs_offset` is specified, only consider qargs starting from that index.
     """
-    iai = [qubits_abs_idx[q] for q in node.qargs[qargs_offset:]]
+    iai = [bits_abs_idx[q] for q in node.qargs[qargs_offset:]]
     return max(iai) - min(iai) + 1
 
 
@@ -115,7 +115,7 @@ def easy_op_to_typst(op_name: str, parameters: list) -> str:
 
 def render_gate_box(
     node: DAGOpNode,
-    qubits_abs_idx: dict[Qubit, int],
+    bits_abs_idx: dict[Bit, int],
     n_controls: int = 0,
     op_name: str | None = None,
 ) -> str:
@@ -125,20 +125,20 @@ def render_gate_box(
 
     Args:
         node (DAGOpNode):
-        qubits_abs_idx (dict[Qubit, int]):
+        bits_abs_idx (dict[Qubit, int]):
         n_controls (int, optional):
         op_name (str | None, optional): To override the node's name.
 
     Returns:
         str:
     """
-    n_wires = _n_wires(node, qubits_abs_idx, n_controls)
+    n_wires = _n_wires(node, bits_abs_idx, n_controls)
     tpst = easy_op_to_typst(op_name or node.name[n_controls:], node.op.params)
     if n_wires == 1:
         return tpst
-    (_, min_qarg_ai), inputs = _min_qarg(node, qubits_abs_idx, n_controls), []
+    (_, min_qarg_ai), inputs = _min_qarg(node, bits_abs_idx, n_controls), []
     for i, q in enumerate(node.qargs[n_controls:]):
-        j = qubits_abs_idx[q] - min_qarg_ai
+        j = bits_abs_idx[q] - min_qarg_ai
         inputs.append(f'(qubit: {j}, label: "{i}")')
     clause = ", ".join(inputs)
     return f"mqgate({tpst}, n: {n_wires}, inputs: ({clause}), width: 5em)"
@@ -146,10 +146,10 @@ def render_gate_box(
 
 def render_opnode(
     node: DAGOpNode,
-    qubits_abs_idx: dict[Qubit, int],
+    bits_abs_idx: dict[Bit, int],
     qargs_offset: int = 0,
     op_name: str | None = None,
-) -> dict[Qubit, str]:
+) -> dict[Bit, str]:
     """
     Given an opnode and a mapping of qubits to their absolute indices, returns
     a dict that maps the input qubits of that node to a typst instruction that
@@ -157,45 +157,49 @@ def render_opnode(
 
     Args:
         node (DAGOpNode):
-        qubits_abs_idx (dict[Qubit, int]): Mapping of qubits to their
-            absolute indices.
+        bits_abs_idx (dict[Qubit, int]): Mapping of bits (quantum and classical)
+            to their absolute wire indices.
         qargs_offset (int, optional): If set, the first `qargs_offset` qargs
             are ignored.
         op_name (str | None, optional): To override the node's name.
 
     Returns:
-        dict[Qubit, str]:
+        dict[Bit, str]:
     """
     op_name, qargs = op_name or node.name, node.qargs[qargs_offset:]
-    result: dict[Qubit, str] = {}
+    result: dict[Bit, str] = {}
 
     # Special cases
     if op_name == "barrier":
         # TODO: only call slice() on first wire
-        for q in qubits_abs_idx:
+        for q in bits_abs_idx:
             result[q] = 'slice(stroke: (paint: black, dash: "solid"))'
     elif op_name == "cp":
         q0, q1 = qargs[:2]
-        ri = qubits_abs_idx[q1] - qubits_abs_idx[q0]
+        ri = bits_abs_idx[q1] - bits_abs_idx[q0]
         theta = as_fraction_of_pi(node.op.params[0])
         result[q0] = f"ctrl({ri}, wire-label: ${theta}$)"
         result[q1] = "ctrl(0)"
     elif op_name == "cz":
         q0, q1 = qargs[:2]
-        ri = qubits_abs_idx[q1] - qubits_abs_idx[q0]
+        ri = bits_abs_idx[q1] - bits_abs_idx[q0]
         result[q0], result[q1] = f"ctrl({ri})", "ctrl(0)"
+    elif op_name == "measure":
+        q0, c0 = qargs[0], node.cargs[0]
+        ri = bits_abs_idx[c0] - bits_abs_idx[q0]
+        result[q0], result[c0] = f"meter(target: {ri})", "ctrl(0)"
     elif op_name == "p":
         theta = as_fraction_of_pi(node.op.params[0])
         result[qargs[0]] = f"phase(${theta}$)"
     elif op_name == "rzz":
         q0, q1 = qargs[:2]
-        ri = qubits_abs_idx[q1] - qubits_abs_idx[q0]
+        ri = bits_abs_idx[q1] - bits_abs_idx[q0]
         theta = as_fraction_of_pi(node.op.params[0])
         result[q0] = f"ctrl({ri}, wire-label: $Z Z ({theta})$)"
         result[q1] = "ctrl(0)"
     elif op_name == "swap":
         q0, q1 = qargs[:2]
-        ri = qubits_abs_idx[q1] - qubits_abs_idx[q0]
+        ri = bits_abs_idx[q1] - bits_abs_idx[q0]
         result[q0], result[q1] = f"swap({ri})", "targX()"
     elif op_name == "x" and node.op.name.endswith("cx"):
         result[qargs[0]] = "targ()"
@@ -203,14 +207,14 @@ def render_opnode(
     # Controlled gate
     elif op_name.startswith("c") and len(qargs) >= 2:
         # TODO: make a recursive call to render_opnode instead?
-        return render_opnode_crtl(node=node, qubits_abs_idx=qubits_abs_idx)
+        return render_opnode_crtl(node=node, bits_abs_idx=bits_abs_idx)
 
     # Generic (boxed) gate
     else:
-        min_qarg, _ = _min_qarg(node, qubits_abs_idx, qargs_offset)
+        min_qarg, _ = _min_qarg(node, bits_abs_idx, qargs_offset)
         result[min_qarg] = render_gate_box(
             node=node,
-            qubits_abs_idx=qubits_abs_idx,
+            bits_abs_idx=bits_abs_idx,
             n_controls=qargs_offset,
             op_name=op_name,
         )
@@ -219,18 +223,18 @@ def render_opnode(
 
 
 def render_opnode_crtl(
-    node: DAGOpNode, qubits_abs_idx: dict[Qubit, int]
-) -> dict[Qubit, str]:
+    node: DAGOpNode, bits_abs_idx: dict[Bit, int]
+) -> dict[Bit, str]:
     """
     Like `render_opnode`, but for controlled gates. The node's opname must start
     with a 'c'.
 
     Args:
         node (DAGOpNode):
-        qubits_abs_idx (dict[Qubit, int]):
+        bits_abs_idx (dict[Bit, int]):
 
     Returns:
-        dict[Qubit, str]:
+        dict[Bit, str]:
     """
     if not node.name.startswith("c"):
         raise ValueError("This function is only accepts controlled gates.")
@@ -246,16 +250,16 @@ def render_opnode_crtl(
 
     # Draw vertical line for all controls
     result = {}
-    _, min_in_q_ai = _min_qarg(node, qubits_abs_idx, n_controls)
+    _, min_in_q_ai = _min_qarg(node, bits_abs_idx, n_controls)
     for q_ctrl in node.qargs[:n_controls]:
-        tgt = min_in_q_ai - qubits_abs_idx[q_ctrl]
+        tgt = min_in_q_ai - bits_abs_idx[q_ctrl]
         result[q_ctrl] = f"ctrl({tgt})"
 
     # Render controlled gate
     result.update(
         render_opnode(
             node=node,
-            qubits_abs_idx=qubits_abs_idx,
+            bits_abs_idx=bits_abs_idx,
             qargs_offset=n_controls,
             op_name=op_name,
         )
