@@ -253,6 +253,14 @@ def test_measure() -> QuantumCircuit:
     return qc
 
 
+def test_pauli_evolution() -> QuantumCircuit:
+    qc = QuantumCircuit(5)
+    op = SparsePauliOp.from_list([("XXI", 1), ("IZZ", 1)])
+    gate = PauliEvolutionGate(op)
+    qc.append(gate, [0, 1, 2])
+    return qc
+
+
 if __name__ == "__main__":
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     preamble = (

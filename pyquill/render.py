@@ -89,11 +89,14 @@ def easy_op_to_typst(op_name: str, parameters: list) -> str:
         # "pauli": "$$", # TODO: maybe?
         # "prepare_state": "State Preparation",  # TODO:
     }
-    typst = easy_gates.get(op_name, f'"{op_name.upper()}"')
-    if op_name == "rv":
-        # Exception: RV gate params are not expected to be fractions of pi
-        return typst.format(*parameters)
-    return typst.format(*map(as_fraction_of_pi, parameters))
+    if typst := easy_gates.get(op_name):
+        if op_name == "rv":
+            # Exception: RV gate params are not expected to be fractions of pi
+            return typst.format(*parameters)
+        return typst.format(*map(as_fraction_of_pi, parameters))
+    if re.match(r"^\w+$", op_name):
+        return f'"{op_name.upper()}"'
+    return op_name
 
 
 def render_gate_box(
@@ -217,6 +220,15 @@ def render_opnode(
         theta = as_fraction_of_pi(node.op.params[0])
         result[qargs[0]] = (
             f"phase((content: ${theta}$, pos: top, dy: -0.75em))"
+        )
+    elif op_name == "PauliEvolution":
+        a, b = node.op.label, node.op.params[0]
+        return render_opnode(
+            node=node,
+            wires_abs_idx=wires_abs_idx,
+            qargs_offset=qargs_offset,
+            op_name=f'"{a} ({b})"',
+            ignore_conditions=ignore_conditions,
         )
     elif op_name == "rzz":
         q0, q1 = qargs[:2]
