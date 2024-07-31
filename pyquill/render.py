@@ -244,8 +244,20 @@ def render_opnode(
         result[qargs[0]] = "targ()"
 
     # Controlled gate
+    elif op_name.startswith("mc") and len(qargs) >= 2:
+        n_ctrls = len(qargs) - 1
+        if n_ctrls <= 2:
+            new_op_name = "c" * n_ctrls
+        else:
+            new_op_name = "c" + str(n_ctrls)
+        new_op_name += op_name[2:]
+        return render_opnode_crtl(
+            node=node,
+            wires_abs_idx=wires_abs_idx,
+            ignore_conditions=ignore_conditions,
+            op_name=new_op_name,
+        )
     elif op_name.startswith("c") and len(qargs) >= 2:
-        # TODO: make a recursive call to render_opnode instead?
         return render_opnode_crtl(
             node=node,
             wires_abs_idx=wires_abs_idx,
@@ -302,7 +314,10 @@ def render_opnode_cond(
 
 
 def render_opnode_crtl(
-    node: DAGOpNode, wires_abs_idx: dict[Wire, int], **kwargs
+    node: DAGOpNode,
+    wires_abs_idx: dict[Wire, int],
+    op_name: str | None = None,
+    **kwargs,
 ) -> dict[Wire, str]:
     """
     Like `render_opnode`, but for controlled gates. The node's opname must start
@@ -315,17 +330,18 @@ def render_opnode_crtl(
     Returns:
         dict[Wire, str]:
     """
-    if not node.name.startswith("c"):
+    op_name = op_name or node.name
+    if not op_name.startswith("c"):
         raise ValueError("This function is only accepts controlled gates.")
 
     # Determine the number of controls and the gate name
-    if node.name.startswith("cc"):
-        n_controls, op_name = 2, node.name[2:]
-    elif match := re.match(r"^c(\d+)\w.*$", node.name):
+    if op_name.startswith("cc"):
+        n_controls, op_name = 2, op_name[2:]
+    elif match := re.match(r"^c(\d+)\w.*$", op_name):
         n_controls = int(match.group(1))
-        op_name = node.name[len(str(n_controls)) + 1 :]
+        op_name = op_name[len(str(n_controls)) + 1 :]
     else:
-        n_controls, op_name = 1, node.name[1:]
+        n_controls, op_name = 1, op_name[1:]
 
     # Draw vertical line for all controls
     result = {}
