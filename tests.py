@@ -5,8 +5,9 @@ from pathlib import Path
 
 import numpy as np
 import typst
-from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister
+from qiskit import ClassicalRegister, QuantumCircuit, QuantumRegister
 from qiskit.circuit.library import *
+from qiskit.quantum_info import SparsePauliOp
 
 from pyquill import draw
 
@@ -19,6 +20,7 @@ def test_simple() -> QuantumCircuit:
     qc.cx(0, 1)
     qc.p(np.pi / 2, 0)
     qc.barrier()
+    qc.append(QFT(3), range(3))
     qc.sx(1)
     qc.cx(1, 0)
     qc.sxdg(1)
@@ -77,14 +79,39 @@ def test_2_qubit_gates() -> QuantumCircuit:
             RYYGate(np.pi),
             RZZGate(np.pi),
             RZXGate(np.pi),
+            GRX(2, np.pi / 3),
+            GRY(2, np.pi / 3),
+            GRZ(2, np.pi / 3),
         ],
-        [],  # 2 parameters
+        [
+            XXMinusYYGate(np.pi, 0),
+            XXPlusYYGate(0, np.pi),
+        ],  # 2 parameters
         [],  # 3 parameter
     ]
     qc = QuantumCircuit(2 * len(gates))
     for i, g in enumerate(gates):
         for u in g:
             qc.append(u, [2 * i, 2 * i + 1])
+    return qc
+
+
+def test_3plus_qubit_gates() -> QuantumCircuit:
+    qc = QuantumCircuit(5)
+    qc.append(GR(3, np.pi / 2, np.pi / 4), [0, 1, 2])
+    qc.append(RCCXGate(), [0, 1, 2])
+    qc.append(RC3XGate(), [0, 1, 2, 3])
+    return qc
+
+
+def test_other_gates() -> QuantumCircuit:
+    qc = QuantumCircuit(8)
+    qc.append(AND(3), [0, 1, 2, 3])
+    qc.append(XOR(3), [4, 5, 6])
+    qc.append(InnerProduct(3), range(6))
+    # qc.append(Diagonal([1] * 4), [0, 1])
+    # qc.append(DiagonalGate([1] * 4), [2, 3])
+    # qc.append(GMS(3, [[np.pi / 2] * 3] * 3), [0, 1, 2])
     return qc
 
 
@@ -138,7 +165,7 @@ def test_register() -> QuantumCircuit:
     return qc
 
 
-def test_controls() -> QuantumCircuit:
+def test_controls_1() -> QuantumCircuit:
     qc = QuantumCircuit(5)
     qc.cswap(2, 0, 1)
     qc.cswap(1, 0, 2)
@@ -157,6 +184,18 @@ def test_controls() -> QuantumCircuit:
     qc.append(RXXGate(3 * np.pi / 2).control(3), [4, 0, 1, 2, 3])
     qc.append(RXXGate(3 * np.pi / 2).control(3), [3, 4, 0, 1, 2])
     qc.append(RXXGate(3 * np.pi / 2).control(3), [2, 3, 4, 0, 1])
+    return qc
+
+
+def test_controls_2() -> QuantumCircuit:
+    qc = QuantumCircuit(5)
+    qc.append(C3SXGate(), [0, 1, 2, 4])
+    qc.append(C3XGate(), [0, 1, 2, 4])
+    qc.append(C4XGate(), [0, 1, 2, 3, 4])
+    qc.rccx(0, 1, 4)
+    qc.rcccx(0, 1, 2, 4)
+    qc.mcx([0, 1, 2, 3], 4)
+    qc.crx(np.pi, 0, 4)
     return qc
 
 
@@ -212,12 +251,6 @@ def test_measure() -> QuantumCircuit:
     qc.measure_all()
     qc.measure_all()
     return qc
-
-
-def test_qft() -> QuantumCircuit:
-    qc = QuantumCircuit(5)
-    qc.append(QFT(5), range(5))
-    return qc.decompose(reps=2)
 
 
 if __name__ == "__main__":

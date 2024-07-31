@@ -56,8 +56,6 @@ def easy_op_to_typst(op_name: str, parameters: list) -> str:
         https://docs.quantum.ibm.com/api/qiskit/qiskit.circuit.QuantumCircuit#methods-to-add-standard-instructions
     """
     easy_gates: dict[str, str] = {  # opname -> typst
-        "dcx": '"DCX"',
-        "ecr": '"ECR"',
         "h": "$H$",
         "id": "$I$",
         "iswap": '"iSWAP"',
@@ -84,17 +82,18 @@ def easy_op_to_typst(op_name: str, parameters: list) -> str:
         "x": "$X$",
         "y": "$Y$",
         "z": "$Z$",
+        "inner_product": '"InnerProd."',
+        "xx_minus_yy": "$(X X - Y Y) ({0}, {1})$",
+        "xx_plus_yy": "$(X X + Y Y) ({0}, {1})$",
         # "ms": '"GMS"',  # TODO:
         # "pauli": "$$", # TODO: maybe?
         # "prepare_state": "State Preparation",  # TODO:
-        # "rcccx": "$$",
-        # "rccx": "$$",
     }
-    if typst := easy_gates.get(op_name):
-        if op_name == "rv":
-            return typst.format(*parameters)
-        return typst.format(*map(as_fraction_of_pi, parameters))
-    return '"???"'
+    typst = easy_gates.get(op_name, f'"{op_name.upper()}"')
+    if op_name == "rv":
+        # Exception: RV gate params are not expected to be fractions of pi
+        return typst.format(*parameters)
+    return typst.format(*map(as_fraction_of_pi, parameters))
 
 
 def render_gate_box(
@@ -195,6 +194,19 @@ def render_opnode(
         q0, q1 = qargs[:2]
         ri = wires_abs_idx[q1] - wires_abs_idx[q0]
         result[q0], result[q1] = f"ctrl({ri})", "ctrl(0)"
+    elif op_name.startswith("GR("):
+        new_op_name = "gr"
+        if op_name.endswith("0.00)"):
+            new_op_name += "x"
+        elif op_name.endswith("1.57)"):
+            new_op_name += "y"
+        return render_opnode(
+            node=node,
+            wires_abs_idx=wires_abs_idx,
+            qargs_offset=qargs_offset,
+            op_name=new_op_name,
+            ignore_conditions=ignore_conditions,
+        )
     elif op_name == "measure":
         q0, c0 = qargs[0], node.cargs[0]
         r0: ClassicalRegister = c0._register
