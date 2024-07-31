@@ -94,7 +94,7 @@ def wire_name(register: Register, index: int | None = None) -> str:
         name = register._name
     else:
         name = f'"{register._name}"'
-    if index and register.size > 1:
+    if index is not None and register.size > 1:
         name = f"{name}_({index})"
     if isinstance(register, QuantumRegister):
         name = f"ket({name})"
