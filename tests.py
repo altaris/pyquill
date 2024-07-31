@@ -214,6 +214,12 @@ def test_measure() -> QuantumCircuit:
     return qc
 
 
+def test_qft() -> QuantumCircuit:
+    qc = QuantumCircuit(5)
+    qc.append(QFT(5), range(5))
+    return qc.decompose(reps=2)
+
+
 if __name__ == "__main__":
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     preamble = (

@@ -184,8 +184,12 @@ def render_opnode(
     elif op_name == "cp":
         q0, q1 = qargs[:2]
         ri = wires_abs_idx[q1] - wires_abs_idx[q0]
+        if ri < 0:
+            ri, q0, q1 = -ri, q1, q0
         theta = as_fraction_of_pi(node.op.params[0])
-        result[q0] = f"ctrl({ri}, wire-label: ${theta}$)"
+        result[q0] = (
+            f"ctrl({ri}, wire-label: (content: ${theta}$, pos: top, dy: -0.75em))"
+        )
         result[q1] = "ctrl(0)"
     elif op_name == "cz":
         q0, q1 = qargs[:2]
@@ -199,7 +203,9 @@ def render_opnode(
         result[r0] = f"ctrl(0, label: ((content: ${c0._index}$, pos: bottom)))"
     elif op_name == "p":
         theta = as_fraction_of_pi(node.op.params[0])
-        result[qargs[0]] = f"phase(${theta}$)"
+        result[qargs[0]] = (
+            f"phase((content: ${theta}$, pos: top, dy: -0.75em))"
+        )
     elif op_name == "rzz":
         q0, q1 = qargs[:2]
         ri = wires_abs_idx[q1] - wires_abs_idx[q0]
