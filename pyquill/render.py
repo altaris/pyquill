@@ -223,11 +223,16 @@ def render_opnode(
         )
     elif op_name == "PauliEvolution":
         a, b = node.op.label, node.op.params[0]
+        match = re.match(r"exp\(-it \((.*)\)\)", a)
+        if not match:
+            raise ValueError(f"Invalid Pauli evolution gate label: '{a}'.")
+        terms = match.group(1)
+        terms = " ".join(list(terms))  # Insert spaces everywhere
         return render_opnode(
             node=node,
             wires_abs_idx=wires_abs_idx,
             qargs_offset=qargs_offset,
-            op_name=f'"{a} ({b})"',
+            op_name=f"$e^(- i t ({terms})) ({b})$",
             ignore_conditions=ignore_conditions,
         )
     elif op_name == "rzz":
