@@ -160,6 +160,21 @@ def test_controls() -> QuantumCircuit:
     return qc
 
 
+def test_controls_overlap() -> QuantumCircuit:
+    qc = QuantumCircuit(5)
+    qc.append(RXXGate(np.pi).control(1), [1, 0, 4])
+    qc.append(RXXGate(np.pi).control(1), [2, 0, 4])
+    qc.append(RXXGate(np.pi).control(1), [3, 0, 4])
+    qc.barrier()
+    qc.append(RXXGate(np.pi).control(2), [1, 2, 0, 4])
+    qc.append(RXXGate(np.pi).control(2), [1, 3, 0, 4])
+    qc.append(RXXGate(np.pi).control(2), [2, 4, 0, 3])
+    qc.barrier()
+    qc.append(RXXGate(np.pi).control(3), [1, 2, 3, 0, 4])
+    qc.append(RXXGate(np.pi).control(3), [0, 2, 4, 1, 3])
+    return qc
+
+
 def test_conditions() -> QuantumCircuit:
     q, c = QuantumRegister(4, "psi"), ClassicalRegister(2, "c")
     qc = QuantumCircuit(q, c)

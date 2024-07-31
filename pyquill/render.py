@@ -116,17 +116,28 @@ def render_gate_box(
     Returns:
         str:
     """
-    n_wires = _n_wires(node, wires_abs_idx, n_controls)
     tpst = easy_op_to_typst(op_name or node.name[n_controls:], node.op.params)
+    _, min_qarg_wi, _, max_qarg_wi = _min_max_qarg(
+        node, wires_abs_idx, n_controls
+    )
+    n_wires = max_qarg_wi - min_qarg_wi + 1
     if n_wires == 1:
         return tpst
-    _, min_qarg_ai, _, _ = _min_max_qarg(node, wires_abs_idx, n_controls)
     inputs = []
+    relative_wi = {q: wires_abs_idx[q] - min_qarg_wi for q in node.qargs}
     for i, q in enumerate(node.qargs[n_controls:]):
-        j = wires_abs_idx[q] - min_qarg_ai
-        inputs.append(f'(qubit: {j}, label: "{i}")')
-    clause = ", ".join(inputs)
-    return f"mqgate({tpst}, n: {n_wires}, inputs: ({clause}), width: 5em)"
+        inputs.append(f'(qubit: {relative_wi[q]}, label: "{i}")')
+    for q in node.qargs[:n_controls]:  # Controls overlapped by the gate
+        if not min_qarg_wi < wires_abs_idx[q] < max_qarg_wi:
+            continue
+        inputs.append(f"(qubit: {relative_wi[q]}, label: $bullet$)")
+    inputs_arr_str = ", ".join(inputs)
+    width = 5.0
+    if n_wires % 2 == 1 and n_wires // 2 in list(relative_wi.values()):
+        # There's an input or control in the middle of the gate. Increase width
+        # to (hopefully) not overlap with gate label.
+        width += 1.5
+    return f"mqgate({tpst}, n: {n_wires}, inputs: ({inputs_arr_str}), width: {width}em)"
 
 
 # pylint: disable=too-many-branches
@@ -288,9 +299,15 @@ def render_opnode_crtl(
 
     # Draw vertical line for all controls
     result = {}
-    _, min_in_q_ai, _, _ = _min_max_qarg(node, wires_abs_idx, n_controls)
+    _, min_qarg_wi, _, max_qarg_wi = _min_max_qarg(
+        node, wires_abs_idx, n_controls
+    )
     for q_ctrl in node.qargs[:n_controls]:
-        tgt = min_in_q_ai - wires_abs_idx[q_ctrl]
+        if min_qarg_wi < wires_abs_idx[q_ctrl] < max_qarg_wi:
+            # Gate overlaps with control. This case is handled by
+            # render_gate_box
+            continue
+        tgt = min_qarg_wi - wires_abs_idx[q_ctrl]
         result[q_ctrl] = f"ctrl({tgt})"
 
     # Render controlled gate
