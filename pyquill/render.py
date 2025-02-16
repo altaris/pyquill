@@ -34,17 +34,6 @@ def _min_max_qarg(
     return min_q, min_ai, max_q, max_ai
 
 
-def _n_wires(
-    node: DAGOpNode, wires_abs_idx: dict[Wire, int], qargs_offset: int = 0
-) -> int:
-    """
-    Return the width of the gate, i.e. the number of wires it spans over. If
-    `qargs_offset` is specified, only consider qargs starting from that index.
-    """
-    iai = [wires_abs_idx[q] for q in node.qargs[qargs_offset:]]
-    return max(iai) - min(iai) + 1
-
-
 def easy_op_to_typst(op_name: str, parameters: list) -> str:
     """
     Converts a gate name (as defined by qiskit) to a typst string. The name
